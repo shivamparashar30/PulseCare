@@ -4,7 +4,7 @@
 > open-source project showcasing the architecture and implementation
 > behind the platform.
 
-<img width="1536" height="1024" alt="poster" src="https://github.com/user-attachments/assets/27b18a2e-c1c3-4ed9-bdcd-b230e64dd51c" />
+<img width="1086" height="1448" alt="poster" src="https://github.com/user-attachments/assets/941b883f-1983-4677-beea-8aa797687adb" />
 
 ## 🚀 Overview
 

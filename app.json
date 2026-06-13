@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Medico",
+    "slug": "medico-healthcare",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "medico",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.medico.healthcare"
+    },
+    "android": {
+      "package": "com.medico.healthcare"
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

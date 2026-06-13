@@ -4,13 +4,8 @@
 > open-source project showcasing the architecture and implementation
 > behind the platform.
 
-```{=html}
-<p align="center">
-```
-`<img src="./src/assets/poster.png" alt="Medico App Poster" width="100%" />`{=html}
-```{=html}
-</p>
-```
+<img width="1536" height="1024" alt="poster" src="https://github.com/user-attachments/assets/27b18a2e-c1c3-4ed9-bdcd-b230e64dd51c" />
+
 ## 🚀 Overview
 
 **PulseCare** is a modern healthcare super app built with **React Native

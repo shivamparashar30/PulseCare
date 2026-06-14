@@ -160,8 +160,9 @@ function MainTabs() {
         headerShown: false,
         tabBarStyle: {
           backgroundColor: isDarkMode ? COLORS.darkCard : COLORS.white,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
+          borderTopWidth: 0,
+          elevation: 0,
+          shadowOpacity: 0,
           paddingBottom: 8,
           paddingTop: 8,
           height: 65,

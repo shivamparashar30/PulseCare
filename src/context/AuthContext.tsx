@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User } from '../types';
 
 // ============================================
@@ -45,10 +46,34 @@ const MOCK_USER: User = {
   ],
 };
 
+const AUTH_STORAGE_KEY = '@auth_user';
+const GUEST_STORAGE_KEY = '@auth_guest';
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isGuest, setIsGuest] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load persisted auth state on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const [storedUser, storedGuest] = await Promise.all([
+          AsyncStorage.getItem(AUTH_STORAGE_KEY),
+          AsyncStorage.getItem(GUEST_STORAGE_KEY),
+        ]);
+        if (storedUser) {
+          setUser(JSON.parse(storedUser));
+        } else if (storedGuest === 'true') {
+          setIsGuest(true);
+        }
+      } catch {
+        // ignore read errors
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, []);
 
   const login = useCallback(async (email: string, _password: string): Promise<boolean> => {
     setIsLoading(true);
@@ -56,9 +81,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Simulate API call
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
-      // Accept any email/password for demo
-      setUser({ ...MOCK_USER, email });
+      const userData = { ...MOCK_USER, email };
+      setUser(userData);
       setIsGuest(false);
+      await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(userData));
+      await AsyncStorage.removeItem(GUEST_STORAGE_KEY);
       return true;
     } catch {
       return false;
@@ -72,8 +99,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setIsLoading(true);
       try {
         await new Promise((resolve) => setTimeout(resolve, 1500));
-        setUser({ ...MOCK_USER, name, email, phone });
+        const userData = { ...MOCK_USER, name, email, phone };
+        setUser(userData);
         setIsGuest(false);
+        await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(userData));
+        await AsyncStorage.removeItem(GUEST_STORAGE_KEY);
         return true;
       } catch {
         return false;
@@ -84,18 +114,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     []
   );
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
     setUser(null);
     setIsGuest(false);
+    await AsyncStorage.multiRemove([AUTH_STORAGE_KEY, GUEST_STORAGE_KEY]);
   }, []);
 
-  const continueAsGuest = useCallback(() => {
+  const continueAsGuest = useCallback(async () => {
     setIsGuest(true);
     setUser(null);
+    await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
+    await AsyncStorage.setItem(GUEST_STORAGE_KEY, 'true');
   }, []);
 
   const updateUser = useCallback((updates: Partial<User>) => {
-    setUser((prev) => (prev ? { ...prev, ...updates } : null));
+    setUser((prev) => {
+      if (!prev) return null;
+      const updated = { ...prev, ...updates };
+      AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updated));
+      return updated;
+    });
   }, []);
 
   return (

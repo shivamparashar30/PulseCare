@@ -112,7 +112,11 @@ export default function MedicalStoresScreen({ navigation }: any) {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.orderBtn, { backgroundColor: colors.primary }]}
-          onPress={() => navigation.navigate('Pharmacy')}
+          onPress={() => {
+            const parent = navigation.getParent();
+            if (parent) parent.navigate('Pharmacy');
+            else navigation.navigate('Pharmacy');
+          }}
         >
           <Text style={styles.orderText}>Order Online</Text>
         </TouchableOpacity>

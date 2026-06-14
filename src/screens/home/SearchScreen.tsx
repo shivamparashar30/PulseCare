@@ -69,7 +69,7 @@ export default function SearchScreen({ navigation }: any) {
   const DoctorResult = ({ item }: { item: typeof DOCTORS[0] }) => (
     <TouchableOpacity
       style={[styles.resultCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-      onPress={() => navigation.navigate('Doctors', { screen: 'DoctorDetail', params: { doctorId: item.id } })}
+      onPress={() => navigation.getParent()?.navigate('Doctors', { screen: 'DoctorDetail', params: { doctorId: item.id } })}
     >
       <Image source={{ uri: item.photo }} style={styles.doctorPhoto} />
       <View style={styles.resultInfo}>
@@ -87,7 +87,7 @@ export default function SearchScreen({ navigation }: any) {
   const MedicineResult = ({ item }: { item: typeof MEDICINES[0] }) => (
     <TouchableOpacity
       style={[styles.resultCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-      onPress={() => navigation.navigate('Pharmacy', { screen: 'MedicineDetail', params: { medicineId: item.id } })}
+      onPress={() => navigation.getParent()?.navigate('Pharmacy', { screen: 'MedicineDetail', params: { medicineId: item.id } })}
     >
       <View style={[styles.medIcon, { backgroundColor: colors.primary + '15' }]}>
         <Ionicons name="medical" size={24} color={colors.primary} />
@@ -106,7 +106,7 @@ export default function SearchScreen({ navigation }: any) {
   const TestResult = ({ item }: { item: typeof LAB_TESTS[0] }) => (
     <TouchableOpacity
       style={[styles.resultCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-      onPress={() => navigation.navigate('HomeStack', { screen: 'LabTestDetail', params: { testId: item.id } })}
+      onPress={() => navigation.navigate('LabTestDetail', { testId: item.id })}
     >
       <View style={[styles.medIcon, { backgroundColor: '#FF6B35' + '15' }]}>
         <Ionicons name="flask" size={24} color="#FF6B35" />

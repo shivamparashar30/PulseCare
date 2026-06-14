@@ -26,7 +26,7 @@ const PACKAGE_COLORS: Record<string, [string, string]> = {
   senior: ['#1565C0', '#42A5F5'],
 };
 
-const CATEGORIES = ['All', 'Basic', 'Essential', 'Comprehensive', 'Premium', "Women's", 'Senior'];
+const CATEGORIES = ['All', 'Basic', 'Essential', 'Comprehensive', 'Premium', "Women's", 'Senior'] as const;
 
 export default function HealthPackagesScreen({ navigation }: any) {
   const { colors } = useTheme();
@@ -51,32 +51,35 @@ export default function HealthPackagesScreen({ navigation }: any) {
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         {/* Gradient Header */}
         <LinearGradient colors={[c1, c2]} style={styles.cardGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-          <View style={styles.gradientContent}>
-            <View>
-              <Text style={styles.packageCategory}>{item.category.toUpperCase()}</Text>
-              <Text style={styles.packageName}>{item.name}</Text>
-              <Text style={styles.packageTests}>{item.tests.length} Tests Included</Text>
-            </View>
-            <View style={styles.priceBlock}>
+          {/* Top row: category + badges */}
+          <View style={styles.gradientTopRow}>
+            <Text style={styles.packageCategory}>{item.category.toUpperCase()}</Text>
+            <View style={styles.badgeRow}>
+              {item.isPopular && (
+                <View style={styles.popularBadge}>
+                  <Ionicons name="star" size={10} color="#F39C12" />
+                  <Text style={styles.popularText}>POPULAR</Text>
+                </View>
+              )}
               {discountPct > 0 && (
                 <View style={styles.discountBadge}>
                   <Text style={styles.discountBadgeText}>{discountPct}% OFF</Text>
                 </View>
               )}
-              <Text style={styles.currentPrice}>{formatCurrency(item.price)}</Text>
-              {item.originalPrice > item.price && (
-                <Text style={styles.originalPrice}>{formatCurrency(item.originalPrice)}</Text>
-              )}
             </View>
           </View>
 
-          {/* Popular badge */}
-          {item.isPopular && (
-            <View style={styles.popularBadge}>
-              <Ionicons name="star" size={10} color="#F39C12" />
-              <Text style={styles.popularText}>POPULAR</Text>
-            </View>
-          )}
+          {/* Package name */}
+          <Text style={styles.packageName}>{item.name}</Text>
+          <Text style={styles.packageTests}>{item.tests.length} Tests Included</Text>
+
+          {/* Price row */}
+          <View style={styles.priceRow}>
+            <Text style={styles.currentPrice}>{formatCurrency(item.price)}</Text>
+            {item.originalPrice > item.price && (
+              <Text style={styles.originalPrice}>{formatCurrency(item.originalPrice)}</Text>
+            )}
+          </View>
         </LinearGradient>
 
         {/* Included Features */}
@@ -129,7 +132,7 @@ export default function HealthPackagesScreen({ navigation }: any) {
           </View>
           <Button
             title="Book Now"
-            onPress={() => navigation.navigate('HomeStack', { screen: 'LabBooking', params: { packageId: item.id } })}
+            onPress={() => navigation.navigate('LabBooking', { packageId: item.id })}
             style={styles.bookBtn}
           />
         </View>
@@ -155,21 +158,23 @@ export default function HealthPackagesScreen({ navigation }: any) {
       </LinearGradient>
 
       {/* Category Filters */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats}>
-        {CATEGORIES.map(cat => (
-          <TouchableOpacity
-            key={cat}
-            style={[styles.catChip, { borderColor: colors.border, backgroundColor: colors.card },
-              selectedCat === cat && { backgroundColor: colors.primary, borderColor: colors.primary }]}
-            onPress={() => setSelectedCat(cat)}
-          >
-            <Text style={[styles.catText, { color: colors.textSecondary },
-              selectedCat === cat && { color: '#fff' }]}>
-              {cat}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      <View style={styles.catsWrapper}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats}>
+          {CATEGORIES.map(cat => (
+            <TouchableOpacity
+              key={cat}
+              style={[styles.catChip, { borderColor: colors.border, backgroundColor: colors.card },
+                selectedCat === cat && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+              onPress={() => setSelectedCat(cat)}
+            >
+              <Text style={[styles.catText, { color: colors.textSecondary },
+                selectedCat === cat && { color: '#fff' }]}>
+                {cat}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
 
       <FlatList
         data={filtered}
@@ -195,22 +200,24 @@ const styles = StyleSheet.create({
   },
   bannerTitle: { color: '#fff', fontSize: FONT_SIZES.lg, fontWeight: '800' },
   bannerSub: { color: 'rgba(255,255,255,0.8)', fontSize: FONT_SIZES.sm, marginTop: 2 },
-  cats: { paddingHorizontal: SPACING.md, paddingBottom: SPACING.sm, gap: SPACING.sm },
-  catChip: { paddingHorizontal: SPACING.md, paddingVertical: 7, borderRadius: BORDER_RADIUS.full, borderWidth: 1 },
-  catText: { fontSize: FONT_SIZES.sm, fontWeight: '500' },
+  catsWrapper: { marginBottom: SPACING.sm },
+  cats: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, gap: SPACING.sm },
+  catChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: BORDER_RADIUS.full, borderWidth: 1 },
+  catText: { fontSize: FONT_SIZES.sm, fontWeight: '600' },
   list: { paddingHorizontal: SPACING.md, paddingBottom: SPACING.xl },
   card: { borderRadius: BORDER_RADIUS.xl, borderWidth: 1, overflow: 'hidden' },
-  cardGradient: { padding: SPACING.lg, position: 'relative' },
-  gradientContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  packageCategory: { color: 'rgba(255,255,255,0.7)', fontSize: FONT_SIZES.xs, fontWeight: '700', letterSpacing: 1, marginBottom: 2 },
-  packageName: { color: '#fff', fontSize: FONT_SIZES.lg, fontWeight: '800', marginBottom: 4 },
-  packageTests: { color: 'rgba(255,255,255,0.8)', fontSize: FONT_SIZES.sm },
-  priceBlock: { alignItems: 'flex-end' },
-  discountBadge: { backgroundColor: '#FF6B35', paddingHorizontal: 8, paddingVertical: 2, borderRadius: BORDER_RADIUS.sm, marginBottom: 4 },
+  cardGradient: { padding: SPACING.lg },
+  gradientTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  packageCategory: { color: 'rgba(255,255,255,0.8)', fontSize: FONT_SIZES.xs, fontWeight: '700', letterSpacing: 1.5 },
+  packageName: { color: '#fff', fontSize: FONT_SIZES.xl, fontWeight: '800', marginBottom: 4 },
+  packageTests: { color: 'rgba(255,255,255,0.8)', fontSize: FONT_SIZES.sm, marginBottom: 12 },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  discountBadge: { backgroundColor: '#FF6B35', paddingHorizontal: 8, paddingVertical: 3, borderRadius: BORDER_RADIUS.sm },
   discountBadgeText: { color: '#fff', fontSize: FONT_SIZES.xs, fontWeight: '700' },
-  currentPrice: { color: '#fff', fontSize: FONT_SIZES.xl, fontWeight: '900' },
-  originalPrice: { color: 'rgba(255,255,255,0.6)', fontSize: FONT_SIZES.sm, textDecorationLine: 'line-through' },
-  popularBadge: { position: 'absolute', top: SPACING.sm, right: SPACING.sm, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: BORDER_RADIUS.sm },
+  currentPrice: { color: '#fff', fontSize: FONT_SIZES['2xl'], fontWeight: '900' },
+  originalPrice: { color: 'rgba(255,255,255,0.6)', fontSize: FONT_SIZES.md, textDecorationLine: 'line-through' },
+  popularBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: BORDER_RADIUS.sm },
   popularText: { color: '#F39C12', fontSize: FONT_SIZES.xs, fontWeight: '700' },
   features: { padding: SPACING.md, gap: SPACING.sm },
   featureItem: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },

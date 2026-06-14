@@ -19,11 +19,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { COLORS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { useLabTest } from '../../hooks';
-import { LabStackParamList } from '../../types';
+import { HomeStackParamList } from '../../types';
 import { Button } from '../../components/common';
 
-type Nav = NativeStackNavigationProp<LabStackParamList, 'LabTestDetail'>;
-type Route = RouteProp<LabStackParamList, 'LabTestDetail'>;
+type Nav = NativeStackNavigationProp<HomeStackParamList, 'LabTestDetail'>;
+type Route = RouteProp<HomeStackParamList, 'LabTestDetail'>;
 
 export function LabTestDetailScreen() {
   const navigation = useNavigation<Nav>();
@@ -52,8 +52,8 @@ export function LabTestDetailScreen() {
               <Text style={styles.heroBadgeText}>{test.reportTime}</Text>
             </View>
             <View style={styles.heroBadge}>
-              <Ionicons name="water-outline" size={14} color="rgba(255,255,255,0.85)" />
-              <Text style={styles.heroBadgeText}>{test.sampleType}</Text>
+              <Ionicons name="pricetag-outline" size={14} color="rgba(255,255,255,0.85)" />
+              <Text style={styles.heroBadgeText}>{test.category}</Text>
             </View>
           </View>
         </LinearGradient>
@@ -76,7 +76,7 @@ export function LabTestDetailScreen() {
         {/* Preparation */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Preparation Instructions</Text>
-          {test.preparationInstructions.map((inst, i) => (
+          {test.preparation.map((inst, i) => (
             <View key={i} style={styles.bulletRow}>
               <View style={styles.bullet} />
               <Text style={styles.bulletText}>{inst}</Text>
@@ -85,11 +85,11 @@ export function LabTestDetailScreen() {
         </View>
 
         {/* Parameters */}
-        {test.parameters && test.parameters.length > 0 && (
+        {test.includes && test.includes.length > 0 && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Parameters Tested</Text>
             <View style={styles.paramGrid}>
-              {test.parameters.map((p, i) => (
+              {test.includes.map((p, i) => (
                 <View key={i} style={styles.paramChip}>
                   <Text style={styles.paramText}>{p}</Text>
                 </View>
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   hero: {
     alignItems: 'center',
     padding: SPACING.xl,
-    paddingBottom: SPACING.xxl ?? 32,
+    paddingBottom: 32,
     gap: SPACING.sm,
   },
   heroIcon: {
@@ -158,26 +158,26 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     margin: SPACING.md,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.white,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md,
     ...SHADOWS.md,
     marginTop: -SPACING.lg,
   },
-  priceLabel: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary },
-  priceValue: { fontSize: FONT_SIZES.xxl ?? 24, fontWeight: '900', color: COLORS.primary },
+  priceLabel: { fontSize: FONT_SIZES.xs, color: COLORS.textPrimarySecondary },
+  priceValue: { fontSize: FONT_SIZES['2xl'], fontWeight: '900', color: COLORS.primary },
   discount: { fontSize: FONT_SIZES.xs, color: COLORS.success, fontWeight: '600' },
   homeVisitInfo: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   homeVisitText: { fontSize: FONT_SIZES.xs, color: COLORS.success, fontWeight: '600' },
   card: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.white,
     marginHorizontal: SPACING.md,
     marginBottom: SPACING.sm,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md,
     ...SHADOWS.sm,
   },
-  cardTitle: { fontSize: FONT_SIZES.md, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.sm },
+  cardTitle: { fontSize: FONT_SIZES.md, fontWeight: '700', color: COLORS.textPrimary, marginBottom: SPACING.sm },
   bulletRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: 8, alignItems: 'flex-start' },
   bullet: {
     width: 6,
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     marginTop: 6,
   },
-  bulletText: { flex: 1, fontSize: FONT_SIZES.sm, color: COLORS.textSecondary, lineHeight: 20 },
+  bulletText: { flex: 1, fontSize: FONT_SIZES.sm, color: COLORS.textPrimarySecondary, lineHeight: 20 },
   paramGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
   paramChip: {
     backgroundColor: COLORS.primaryLight,
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   paramText: { fontSize: FONT_SIZES.xs, color: COLORS.primary, fontWeight: '600' },
-  infoText: { fontSize: FONT_SIZES.sm, color: COLORS.textSecondary, lineHeight: 22 },
+  infoText: { fontSize: FONT_SIZES.sm, color: COLORS.textPrimarySecondary, lineHeight: 22 },
   footer: {
     position: 'absolute',
     bottom: 0,
@@ -205,11 +205,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: SPACING.md,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.white,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
     ...SHADOWS.lg,
   },
-  footerLabel: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary },
+  footerLabel: { fontSize: FONT_SIZES.xs, color: COLORS.textPrimarySecondary },
   footerPrice: { fontSize: FONT_SIZES.xl, fontWeight: '800', color: COLORS.primary },
 });

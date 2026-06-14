@@ -202,9 +202,11 @@ export interface MedicalStore {
 export interface HealthPackage {
   id: string;
   name: string;
+  category: string;
   description: string;
   tests: string[];
   price: number;
+  originalPrice: number;
   discountPercent: number;
   discountedPrice: number;
   reportTime: string;

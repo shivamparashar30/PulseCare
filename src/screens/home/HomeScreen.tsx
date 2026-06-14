@@ -51,10 +51,30 @@ export default function HomeScreen({ navigation }: any) {
     setTimeout(() => setRefreshing(false), 1500);
   }, []);
 
-  const handleCategoryPress = (route: string) => {
-    if (route === 'Doctors') navigation.navigate('Doctors');
-    else if (route === 'Pharmacy') navigation.navigate('Pharmacy');
-    else navigation.navigate('LabTests');
+  const navigateToTab = (tabName: string, params?: any) => {
+    const parent = navigation.getParent();
+    if (parent) {
+      parent.navigate(tabName, params);
+    } else {
+      navigation.navigate(tabName, params);
+    }
+  };
+
+  const handleCategoryPress = (cat: typeof CATEGORIES[number]) => {
+    if (cat.route === 'Doctors') {
+      navigateToTab('Doctors');
+    } else if (cat.route === 'Pharmacy') {
+      navigateToTab('Pharmacy');
+    } else {
+      navigation.navigate('LabTests');
+    }
+  };
+
+  const handleBannerPress = (banner: typeof BANNERS[number]) => {
+    if (banner.image === 'doctor') navigateToTab('Doctors');
+    else if (banner.image === 'medicine') navigateToTab('Pharmacy');
+    else if (banner.image === 'lab') navigation.navigate('LabTests');
+    else if (banner.image === 'checkup') navigation.navigate('HealthPackages');
   };
 
   const getGreeting = () => {
@@ -65,10 +85,11 @@ export default function HomeScreen({ navigation }: any) {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView style={{ backgroundColor: COLORS.primary }} edges={['top']} />
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.white} />}
       >
         {/* Top Header */}
         <LinearGradient colors={[COLORS.primary, COLORS.primaryDark]} style={styles.topHeader}>
@@ -129,7 +150,11 @@ export default function HomeScreen({ navigation }: any) {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.bannerTitle}>{banner.title}</Text>
                   <Text style={styles.bannerSubtitle}>{banner.subtitle}</Text>
-                  <TouchableOpacity style={styles.bannerBtn}>
+                  <TouchableOpacity
+                    style={styles.bannerBtn}
+                    activeOpacity={0.8}
+                    onPress={() => handleBannerPress(banner)}
+                  >
                     <Text style={styles.bannerBtnText}>{banner.actionText} →</Text>
                   </TouchableOpacity>
                 </View>
@@ -156,40 +181,41 @@ export default function HomeScreen({ navigation }: any) {
 
           {/* Categories */}
           <SectionHeader title="Services" />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoriesScroll}>
+          <View style={styles.categoriesGrid}>
             {CATEGORIES.map((cat) => (
               <TouchableOpacity
                 key={cat.id}
                 style={styles.categoryItem}
-                onPress={() => handleCategoryPress(cat.route)}
+                activeOpacity={0.7}
+                onPress={() => handleCategoryPress(cat)}
               >
-                <View style={[styles.categoryIcon, { backgroundColor: cat.color + '18' }]}>
-                  <Ionicons name={cat.icon as any} size={26} color={cat.color} />
+                <View style={[styles.categoryIcon, { backgroundColor: cat.color + '15' }]}>
+                  <Ionicons name={cat.icon as any} size={24} color={cat.color} />
                 </View>
                 <Text style={[styles.categoryName, { color: colors.textSecondary }]} numberOfLines={1}>
                   {cat.name}
                 </Text>
               </TouchableOpacity>
             ))}
-          </ScrollView>
+          </View>
 
           {/* Top Doctors */}
           <View style={{ marginTop: SPACING.base }}>
             <SectionHeader
               title="Top Doctors"
-              onSeeAll={() => navigation.navigate('Doctors')}
+              onSeeAll={() => navigateToTab('Doctors')}
             />
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {topDoctors.map((doctor) => (
                 <TouchableOpacity
                   key={doctor.id}
                   style={styles.doctorCard}
-                  onPress={() => navigation.navigate('Doctors', {
+                  onPress={() => navigateToTab('Doctors', {
                     screen: 'DoctorDetail',
                     params: { doctorId: doctor.id },
                   })}
                 >
-                  <View style={styles.doctorCardInner}>
+                  <View style={[styles.doctorCardInner, { backgroundColor: colors.card }]}>
                     <Image source={{ uri: doctor.avatar }} style={styles.doctorAvatar} />
                     <View style={[styles.availBadge, { backgroundColor: doctor.isAvailable ? COLORS.successLight : COLORS.warningLight }]}>
                       <Text style={{ fontSize: 10, color: doctor.isAvailable ? COLORS.success : COLORS.warning, fontWeight: '600' }}>
@@ -212,14 +238,14 @@ export default function HomeScreen({ navigation }: any) {
           <View style={{ marginTop: SPACING.base }}>
             <SectionHeader
               title="Popular Medicines"
-              onSeeAll={() => navigation.navigate('Pharmacy')}
+              onSeeAll={() => navigateToTab('Pharmacy')}
             />
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {popularMedicines.map((med) => (
                 <TouchableOpacity
                   key={med.id}
                   style={styles.medicineCard}
-                  onPress={() => navigation.navigate('Pharmacy', {
+                  onPress={() => navigateToTab('Pharmacy', {
                     screen: 'MedicineDetail',
                     params: { medicineId: med.id },
                   })}
@@ -249,7 +275,7 @@ export default function HomeScreen({ navigation }: any) {
               onSeeAll={() => navigation.navigate('MedicalStores')}
             />
             {MEDICAL_STORES.slice(0, 3).map((store) => (
-              <Card key={store.id} style={styles.storeCard} onPress={() => {}}>
+              <Card key={store.id} style={styles.storeCard} onPress={() => navigation.navigate('MedicalStores')}>
                 <View style={styles.storeRow}>
                   <View style={[styles.storeIconContainer, { backgroundColor: COLORS.primaryUltraLight }]}>
                     <Ionicons name="storefront-outline" size={28} color={COLORS.primary} />
@@ -287,11 +313,12 @@ export default function HomeScreen({ navigation }: any) {
               {HEALTH_PACKAGES.slice(0, 4).map((pkg) => (
                 <TouchableOpacity
                   key={pkg.id}
-                  style={styles.packageCard}
+                  style={[styles.packageCard, { backgroundColor: colors.card }]}
+                  activeOpacity={0.85}
                   onPress={() => navigation.navigate('HealthPackages')}
                 >
                   <LinearGradient
-                    colors={[COLORS.primaryUltraLight, COLORS.background]}
+                    colors={[COLORS.primaryUltraLight, colors.card]}
                     style={styles.packageGradient}
                   >
                     <View style={styles.packageIcon}>
@@ -300,12 +327,12 @@ export default function HomeScreen({ navigation }: any) {
                     <Text style={[styles.packageName, { color: colors.textPrimary }]} numberOfLines={2}>
                       {pkg.name}
                     </Text>
-                    <Text style={styles.packageTests}>{pkg.tests.length} Tests</Text>
+                    <Text style={[styles.packageTests, { color: colors.textSecondary }]}>{pkg.tests.length} Tests</Text>
                     <View style={styles.packagePriceRow}>
-                      <Text style={styles.packagePrice}>₹{pkg.discountedPrice}</Text>
-                      <Text style={styles.packageOrigPrice}>₹{pkg.price}</Text>
+                      <Text style={styles.packagePrice}>₹{pkg.price}</Text>
+                      <Text style={[styles.packageOrigPrice, { color: colors.textTertiary }]}>₹{pkg.originalPrice}</Text>
                     </View>
-                    <Badge label={`${pkg.discountPercent}% OFF`} size="sm" />
+                    <Badge label={`${pkg.discountPercent}% OFF`} size="sm" color={COLORS.accent} bgColor={COLORS.accentUltraLight} />
                   </LinearGradient>
                 </TouchableOpacity>
               ))}
@@ -313,7 +340,7 @@ export default function HomeScreen({ navigation }: any) {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -392,11 +419,20 @@ const styles = StyleSheet.create({
   bannerIconContainer: { justifyContent: 'center' },
   dotsContainer: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginBottom: SPACING.lg },
   dot: { width: 6, height: 6, borderRadius: 3 },
-  categoriesScroll: { marginBottom: SPACING.lg },
-  categoryItem: { alignItems: 'center', marginRight: SPACING.base, width: 72 },
+  categoriesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: SPACING.sm,
+  },
+  categoryItem: {
+    alignItems: 'center',
+    width: '22%',
+    marginBottom: SPACING.md,
+    marginHorizontal: '1.5%',
+  },
   categoryIcon: {
-    width: 58,
-    height: 58,
+    width: 52,
+    height: 52,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
@@ -405,7 +441,6 @@ const styles = StyleSheet.create({
   categoryName: { fontSize: 11, fontWeight: '500', textAlign: 'center' },
   doctorCard: { marginRight: SPACING.md, width: 150 },
   doctorCardInner: {
-    backgroundColor: COLORS.white,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md,
     alignItems: 'center',
@@ -471,8 +506,8 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
   },
   packageName: { fontSize: FONT_SIZES.sm, fontWeight: '700', marginBottom: 4 },
-  packageTests: { fontSize: 11, color: COLORS.textSecondary, marginBottom: 6 },
+  packageTests: { fontSize: 11, marginBottom: 6 },
   packagePriceRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
   packagePrice: { fontSize: FONT_SIZES.base, fontWeight: '800', color: COLORS.primary },
-  packageOrigPrice: { fontSize: FONT_SIZES.sm, color: COLORS.textTertiary, textDecorationLine: 'line-through' },
+  packageOrigPrice: { fontSize: FONT_SIZES.sm, textDecorationLine: 'line-through' as const },
 });

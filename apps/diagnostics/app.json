@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Healthcare Diagnostics",
+    "slug": "healthcare-diagnostics",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "healthcare-diagnostics",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.healthcare.diagnostics"
+    },
+    "android": {
+      "package": "com.healthcare.diagnostics"
+    }
+  }
+}

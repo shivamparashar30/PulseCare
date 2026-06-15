@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Healthcare Doctor",
+    "slug": "healthcare-doctor",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "healthcare-doctor",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.healthcare.doctor"
+    },
+    "android": {
+      "package": "com.healthcare.doctor"
+    }
+  }
+}

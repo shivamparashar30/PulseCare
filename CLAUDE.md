@@ -1,65 +1,94 @@
-# CLAUDE.md - Project Guide for Claude Code
+# CLAUDE.md - Healthcare Monorepo
 
-## Project Overview
+## Overview
 
-**PulseCare / Medico** — A healthcare super app built with React Native (Expo) and TypeScript. Features doctor appointment booking, e-pharmacy, lab test scheduling, health records, and Razorpay payments.
+Turborepo + pnpm monorepo with 4 Expo apps sharing common packages.
+
+## Apps
+
+| App | Package | Port | Description |
+|-----|---------|------|-------------|
+| Patient | `@healthcare/patient` | 8081 | Patient-facing: book doctors, order medicines, lab tests |
+| Doctor | `@healthcare/doctor` | 8082 | Doctor panel: manage appointments, patients (skeleton) |
+| Medical Store | `@healthcare/medical-store` | 8083 | Store panel: manage inventory, orders (skeleton) |
+| Diagnostics | `@healthcare/diagnostics` | 8084 | Lab panel: manage bookings, reports (skeleton) |
+
+## Commands
+
+```bash
+# Install
+pnpm install
+
+# Run individual apps
+pnpm dev:patient          # Start patient app
+pnpm dev:doctor           # Start doctor app
+pnpm dev:medical-store    # Start medical store app
+pnpm dev:diagnostics      # Start diagnostics app
+
+# Run on Android
+pnpm android:patient
+pnpm android:doctor
+pnpm android:medical-store
+pnpm android:diagnostics
+
+# Run all apps in parallel
+pnpm dev
+
+# Type check all
+pnpm typecheck
+```
+
+## Structure
+
+```
+HealthcareApp/
+├── apps/
+│   ├── patient/              # Full patient app (complete)
+│   │   ├── src/features/     # auth, patient, doctor, medicalStore, diagnostics
+│   │   ├── App.tsx
+│   │   ├── app.json
+│   │   ├── metro.config.js
+│   │   └── package.json
+│   ├── doctor/               # Doctor panel (skeleton)
+│   ├── medicalStore/         # Medical store panel (skeleton)
+│   └── diagnostics/          # Diagnostics panel (skeleton)
+├── packages/
+│   ├── core/                 # @healthcare/core
+│   │   └── src/
+│   │       ├── api/          # Axios client, mock data
+│   │       ├── constants/    # Colors, fonts, spacing, shadows
+│   │       ├── hooks/        # React Query hooks
+│   │       ├── navigation/   # AppNavigator (patient app)
+│   │       ├── types/        # All TypeScript interfaces
+│   │       └── utils/        # formatDate, currency, etc.
+│   ├── shared/               # @healthcare/shared
+│   │   └── src/
+│   │       ├── components/   # Button, Card, Header, Input, etc.
+│   │       └── assets/       # Images
+│   └── providers/            # @healthcare/providers
+│       └── src/
+│           ├── AuthProvider.tsx
+│           └── ThemeProvider.tsx
+├── turbo.json
+├── pnpm-workspace.yaml
+└── package.json
+```
 
 ## Tech Stack
 
+- **Monorepo:** Turborepo + pnpm workspaces
 - **Framework:** React Native (Expo SDK 51)
 - **Language:** TypeScript (strict mode)
-- **Navigation:** React Navigation v6 (native-stack + bottom-tabs)
-- **State:** Context API (Auth, Cart, Theme) + Zustand
-- **Server State:** TanStack React Query v5
+- **Navigation:** React Navigation v6
+- **State:** Context API + TanStack React Query v5
 - **HTTP:** Axios
-- **Forms:** React Hook Form
 - **Payments:** Razorpay
-- **Animations:** react-native-reanimated + react-native-gesture-handler
-
-## Project Structure
-
-```
-src/
-├── components/common/   # Shared UI components
-├── screens/
-│   ├── auth/            # Login, Signup, ForgotPassword
-│   ├── home/            # Home, Search, Notifications, MedicalStores, HealthPackages
-│   ├── doctors/         # DoctorsList, DoctorDetail, BookAppointment, Payment, Success
-│   ├── pharmacy/        # PharmacyHome, MedicineDetail, Cart, Checkout, OrderSuccess, Wishlist
-│   ├── lab/             # LabTests, LabTestDetail, LabBooking
-│   ├── appointments/    # AppointmentsList, AppointmentDetail
-│   └── profile/         # Profile, EditProfile, HealthRecords, HelpCenter, PrivacyPolicy
-├── navigation/          # AppNavigator (stack + tab config)
-├── context/             # AuthContext, CartContext, ThemeContext
-├── services/            # API layer (Axios)
-├── hooks/               # Custom hooks
-├── data/                # Static data (doctors, medicines)
-├── utils/               # Utility functions
-├── constants/           # App-wide constants
-└── types/               # TypeScript type definitions
-```
-
-## Key Commands
-
-```bash
-npm install              # Install dependencies
-npx expo start           # Start dev server
-npx expo start --ios     # Run on iOS
-npx expo start --android # Run on Android
-npm run typecheck         # TypeScript type checking (tsc --noEmit)
-```
-
-## Architecture Notes
-
-- **Entry point:** `App.tsx` — wraps app in GestureHandlerRootView > SafeAreaProvider > QueryClientProvider > ThemeProvider > AuthProvider > CartProvider
-- **Path alias:** `@/*` maps to `src/*` (configured in tsconfig.json)
-- **React Query defaults:** 2 retries, 5min stale time, 10min GC time, no refetch on window focus
-- **Dark mode:** Managed via ThemeContext, StatusBar auto-flips style
 
 ## Conventions
 
-- Use TypeScript strict mode — avoid `any`
-- Screens follow the pattern: `src/screens/<module>/<ScreenName>Screen.tsx`
-- Shared components go in `src/components/common/`
-- Types are centralized in `src/types/index.ts`
-- Constants are centralized in `src/constants/index.ts`
+- Each app is an independent Expo project with its own `app.json`, `metro.config.js`
+- Shared code lives in `packages/` with `workspace:*` dependencies
+- Metro config includes monorepo root in `watchFolders` for package resolution
+- Feature screens: `apps/<app>/src/features/<feature>/screens/`
+- Feature-specific context stays in feature folder
+- Global providers in `packages/providers/`

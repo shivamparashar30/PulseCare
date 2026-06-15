@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Healthcare Medical Store",
+    "slug": "healthcare-medical-store",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "healthcare-store",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.healthcare.store"
+    },
+    "android": {
+      "package": "com.healthcare.store"
+    }
+  }
+}

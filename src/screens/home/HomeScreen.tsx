@@ -20,7 +20,7 @@ import { COLORS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../const
 import { Card, SectionHeader, StarRating, PriceDisplay, DiscountBadge, Badge } from '../../components/common';
 import { getTopDoctors } from '../../data/doctors';
 import { getPopularMedicines } from '../../data/medicines';
-import { MEDICAL_STORES, HEALTH_PACKAGES, BANNERS } from '../../data';
+import { MEDICAL_STORES, HEALTH_PACKAGES, BANNERS, LAB_TESTS } from '../../data';
 
 const { width } = Dimensions.get('window');
 const BANNER_WIDTH = width - SPACING.base * 2;
@@ -45,6 +45,7 @@ export default function HomeScreen({ navigation }: any) {
 
   const topDoctors = getTopDoctors();
   const popularMedicines = getPopularMedicines();
+  const popularLabTests = LAB_TESTS.filter((t) => t.isPopular).slice(0, 6);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -231,6 +232,67 @@ export default function HomeScreen({ navigation }: any) {
                   </View>
                 </TouchableOpacity>
               ))}
+            </ScrollView>
+          </View>
+
+          {/* Popular Lab Tests */}
+          <View style={{ marginTop: SPACING.base }}>
+            <SectionHeader
+              title="Popular Lab Tests"
+              onSeeAll={() => navigation.navigate('LabTests')}
+            />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {popularLabTests.map((test, index) => {
+                const accentColors = [
+                  { bg: '#EEF2FF', border: '#C7D2FE', icon: '#6366F1', text: '#4338CA' },
+                  { bg: '#FFF1F2', border: '#FECDD3', icon: '#F43F5E', text: '#BE123C' },
+                  { bg: '#ECFDF5', border: '#A7F3D0', icon: '#10B981', text: '#047857' },
+                  { bg: '#FFF7ED', border: '#FED7AA', icon: '#F97316', text: '#C2410C' },
+                  { bg: '#F0F9FF', border: '#BAE6FD', icon: '#0EA5E9', text: '#0369A1' },
+                  { bg: '#FAF5FF', border: '#E9D5FF', icon: '#A855F7', text: '#7E22CE' },
+                ];
+                const accent = accentColors[index % accentColors.length];
+                return (
+                  <TouchableOpacity
+                    key={test.id}
+                    style={[styles.labCard, { backgroundColor: colors.card }]}
+                    activeOpacity={0.85}
+                    onPress={() => navigation.navigate('LabTestDetail', { testId: test.id })}
+                  >
+                    <View style={[styles.labIconRow]}>
+                      <View style={[styles.labIconCircle, { backgroundColor: accent.bg, borderColor: accent.border }]}>
+                        <Ionicons name="flask" size={18} color={accent.icon} />
+                      </View>
+                      {test.discountPercent > 0 && (
+                        <View style={[styles.labDiscountChip, { backgroundColor: accent.bg }]}>
+                          <Text style={[styles.labDiscountText, { color: accent.text }]}>{test.discountPercent}% off</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={[styles.labTestName, { color: colors.textPrimary }]} numberOfLines={2}>{test.name}</Text>
+                    <Text style={[styles.labCategory, { color: colors.textTertiary }]}>{test.category}</Text>
+                    <View style={styles.labBottomRow}>
+                      <View>
+                        <Text style={[styles.labPrice, { color: accent.text }]}>₹{test.discountedPrice || test.price}</Text>
+                        {test.discountPercent > 0 && (
+                          <Text style={[styles.labOrigPrice, { color: colors.textTertiary }]}>₹{test.price}</Text>
+                        )}
+                      </View>
+                      <View style={[styles.labReportBadge, { backgroundColor: accent.bg }]}>
+                        <Ionicons name="time-outline" size={10} color={accent.icon} />
+                        <Text style={[styles.labReportText, { color: accent.text }]}>{test.reportTime}</Text>
+                      </View>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.labBookBtn, { backgroundColor: accent.text }]}
+                      activeOpacity={0.8}
+                      onPress={() => navigation.navigate('LabTestDetail', { testId: test.id })}
+                    >
+                      <Text style={styles.labBookBtnText}>Book Now</Text>
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
           </View>
 
@@ -456,6 +518,87 @@ const styles = StyleSheet.create({
   doctorName: { fontSize: FONT_SIZES.sm, fontWeight: '700', textAlign: 'center', marginBottom: 2 },
   doctorSpec: { fontSize: 11, color: COLORS.textSecondary, marginBottom: 6, textAlign: 'center' },
   doctorFees: { fontSize: FONT_SIZES.sm, color: COLORS.primary, fontWeight: '600', marginTop: 4 },
+  labCard: {
+    width: 165,
+    marginRight: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.base,
+    ...SHADOWS.sm,
+  },
+  labIconRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  labIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  labDiscountChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  labDiscountText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  labTestName: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
+    marginBottom: 3,
+    lineHeight: 17,
+  },
+  labCategory: {
+    fontSize: 10,
+    fontWeight: '500',
+    marginBottom: SPACING.sm,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+  },
+  labBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    marginBottom: SPACING.md,
+  },
+  labPrice: {
+    fontSize: FONT_SIZES.base,
+    fontWeight: '800',
+  },
+  labOrigPrice: {
+    fontSize: 10,
+    textDecorationLine: 'line-through' as const,
+    marginTop: 1,
+  },
+  labReportBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  labReportText: {
+    fontSize: 9,
+    fontWeight: '600',
+  },
+  labBookBtn: {
+    borderRadius: BORDER_RADIUS.md,
+    paddingVertical: 9,
+    alignItems: 'center',
+  },
+  labBookBtnText: {
+    color: '#fff',
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
   medicineCard: { width: 130, marginRight: SPACING.md },
   medicineImage: {
     height: 90,

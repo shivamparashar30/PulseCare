@@ -5,8 +5,8 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Image,
   Alert,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,7 +19,7 @@ import { ProfileStackParamList } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 
-type Nav = NativeStackNavigationProp<ProfileStackParamList, 'ProfileHome'>;
+type Nav = NativeStackNavigationProp<ProfileStackParamList, 'ProfileMain'>;
 
 const MENU_SECTIONS = [
   {
@@ -54,7 +54,7 @@ const MENU_SECTIONS = [
 export default function ProfileScreen() {
   const navigation = useNavigation<Nav>();
   const { user, logout } = useAuth();
-  const { isDarkMode, toggleTheme } = useTheme();
+  const { colors, isDarkMode, toggleTheme } = useTheme();
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
@@ -63,102 +63,113 @@ export default function ProfileScreen() {
     ]);
   };
 
+  const initials = user?.name?.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() || 'GU';
+
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-        {/* Profile hero */}
-        <LinearGradient colors={[COLORS.primary, COLORS.primaryDark]} style={styles.hero}>
-          <View style={styles.avatarContainer}>
-            <Text style={styles.avatarText}>
-              {user?.name?.split(' ').map((n) => n[0]).join('').slice(0, 2)}
-            </Text>
+        {/* Profile Header */}
+        <LinearGradient
+          colors={[COLORS.primary, COLORS.primaryDark]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.hero}
+        >
+          <View style={styles.heroContent}>
+            <View style={styles.avatarRing}>
+              <View style={styles.avatarInner}>
+                <Text style={styles.avatarText}>{initials}</Text>
+              </View>
+            </View>
+            <View style={styles.heroInfo}>
+              <Text style={styles.heroName} numberOfLines={1}>{user?.name || 'Guest User'}</Text>
+              {user?.email && (
+                <View style={styles.heroDetailRow}>
+                  <Ionicons name="mail-outline" size={12} color="rgba(255,255,255,0.7)" />
+                  <Text style={styles.heroDetail}>{user.email}</Text>
+                </View>
+              )}
+              {user?.phone && (
+                <View style={styles.heroDetailRow}>
+                  <Ionicons name="call-outline" size={12} color="rgba(255,255,255,0.7)" />
+                  <Text style={styles.heroDetail}>{user.phone}</Text>
+                </View>
+              )}
+            </View>
           </View>
-          <Text style={styles.heroName}>{user?.name}</Text>
-          <Text style={styles.heroEmail}>{user?.email}</Text>
-          <Text style={styles.heroPhone}>{user?.phone}</Text>
           <TouchableOpacity
-            style={styles.editBtn}
+            style={styles.editProfileBtn}
             onPress={() => navigation.navigate('EditProfile')}
+            activeOpacity={0.85}
           >
-            <Ionicons name="pencil-outline" size={14} color={COLORS.primary} />
-            <Text style={styles.editBtnText}>Edit Profile</Text>
+            <Ionicons name="create-outline" size={14} color="#fff" />
+            <Text style={styles.editProfileBtnText}>Edit Profile</Text>
           </TouchableOpacity>
         </LinearGradient>
 
-        {/* Quick stats */}
-        <View style={styles.statsRow}>
+        {/* Quick Stats */}
+        <View style={[styles.statsCard, { backgroundColor: colors.card }]}>
           {[
-            { label: 'Appointments', value: '3', icon: 'calendar-outline' },
-            { label: 'Lab Tests', value: '2', icon: 'flask-outline' },
-            { label: 'Orders', value: '5', icon: 'bag-outline' },
-          ].map(({ label, value, icon }) => (
-            <View key={label} style={styles.statItem}>
-              <Ionicons name={icon as any} size={20} color={COLORS.primary} />
-              <Text style={styles.statValue}>{value}</Text>
-              <Text style={styles.statLabel}>{label}</Text>
-            </View>
+            { label: 'Appointments', value: '3', icon: 'calendar', color: '#7c3aed' },
+            { label: 'Lab Tests', value: '2', icon: 'flask', color: '#0891b2' },
+            { label: 'Orders', value: '5', icon: 'bag-handle', color: '#059669' },
+          ].map(({ label, value, icon, color }, index) => (
+            <React.Fragment key={label}>
+              {index > 0 && <View style={[styles.statDivider, { backgroundColor: colors.border }]} />}
+              <View style={styles.statItem}>
+                <View style={[styles.statIconCircle, { backgroundColor: color + '15' }]}>
+                  <Ionicons name={icon as any} size={18} color={color} />
+                </View>
+                <Text style={[styles.statValue, { color: colors.textPrimary }]}>{value}</Text>
+                <Text style={[styles.statLabel, { color: colors.textTertiary }]}>{label}</Text>
+              </View>
+            </React.Fragment>
           ))}
         </View>
 
-        {/* Family members */}
-        {user?.familyMembers && user.familyMembers.length > 0 && (
-          <View style={styles.familyCard}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>Family Members</Text>
-              <TouchableOpacity>
-                <Text style={styles.addText}>+ Add</Text>
-              </TouchableOpacity>
+        {/* Dark Mode Toggle */}
+        <View style={[styles.darkModeCard, { backgroundColor: colors.card }]}>
+          <View style={styles.darkModeLeft}>
+            <View style={[styles.menuIconBox, { backgroundColor: isDarkMode ? '#312e81' : '#1e293b15' }]}>
+              <Ionicons name={isDarkMode ? 'moon' : 'moon-outline'} size={18} color={isDarkMode ? '#a5b4fc' : '#1e293b'} />
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={{ flexDirection: 'row', gap: SPACING.md }}>
-                {user.familyMembers.map((member, i) => (
-                  <TouchableOpacity key={i} style={styles.familyMember}>
-                    <View style={styles.familyAvatar}>
-                      <Text style={styles.familyAvatarText}>{member.name[0]}</Text>
-                    </View>
-                    <Text style={styles.familyName} numberOfLines={1}>{member.name.split(' ')[0]}</Text>
-                    <Text style={styles.familyRelation}>{member.relation}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </ScrollView>
-          </View>
-        )}
-
-        {/* Dark mode toggle */}
-        <View style={styles.toggleCard}>
-          <View style={styles.toggleLeft}>
-            <View style={[styles.menuIconBox, { backgroundColor: '#1e293b' }]}>
-              <Ionicons name="moon-outline" size={18} color="#fff" />
+            <View>
+              <Text style={[styles.darkModeTitle, { color: colors.textPrimary }]}>Dark Mode</Text>
+              <Text style={[styles.darkModeSub, { color: colors.textTertiary }]}>
+                {isDarkMode ? 'On' : 'Off'}
+              </Text>
             </View>
-            <Text style={styles.menuLabel}>Dark Mode</Text>
           </View>
-          <TouchableOpacity
-            style={[styles.toggle, isDarkMode && styles.toggleOn]}
-            onPress={toggleTheme}
-          >
-            <View style={[styles.toggleThumb, isDarkMode && styles.toggleThumbOn]} />
-          </TouchableOpacity>
+          <Switch
+            value={isDarkMode}
+            onValueChange={toggleTheme}
+            trackColor={{ false: colors.border, true: COLORS.primary }}
+            thumbColor="#fff"
+          />
         </View>
 
-        {/* Menu sections */}
+        {/* Menu Sections */}
         {MENU_SECTIONS.map((section) => (
           <View key={section.title} style={styles.menuSection}>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
-            <View style={styles.menuCard}>
+            <Text style={[styles.sectionTitle, { color: colors.textTertiary }]}>{section.title}</Text>
+            <View style={[styles.menuCard, { backgroundColor: colors.card }]}>
               {section.items.map((item, i) => (
                 <TouchableOpacity
                   key={item.label}
-                  style={[styles.menuItem, i < section.items.length - 1 && styles.menuItemBorder]}
+                  style={[
+                    styles.menuItem,
+                    i < section.items.length - 1 && [styles.menuItemBorder, { borderBottomColor: colors.border }],
+                  ]}
                   onPress={() => {
                     if (item.route) navigation.navigate(item.route as any);
                   }}
+                  activeOpacity={0.7}
                 >
-                  <View style={[styles.menuIconBox, { backgroundColor: item.color + '20' }]}>
+                  <View style={[styles.menuIconBox, { backgroundColor: item.color + '12' }]}>
                     <Ionicons name={item.icon as any} size={18} color={item.color} />
                   </View>
-                  <Text style={styles.menuLabel}>{item.label}</Text>
-                  <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} />
+                  <Text style={[styles.menuLabel, { color: colors.textPrimary }]}>{item.label}</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
                 </TouchableOpacity>
               ))}
             </View>
@@ -166,151 +177,188 @@ export default function ProfileScreen() {
         ))}
 
         {/* Logout */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+        <TouchableOpacity
+          style={[styles.logoutBtn, { backgroundColor: colors.card }]}
+          onPress={handleLogout}
+          activeOpacity={0.8}
+        >
           <Ionicons name="log-out-outline" size={20} color={COLORS.error} />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
 
-        <Text style={styles.version}>HealthCare+ v1.0.0</Text>
+        <Text style={[styles.version, { color: colors.textTertiary }]}>HealthCare+ v1.0.0</Text>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1 },
   hero: {
-    alignItems: 'center',
-    padding: SPACING.xl,
-    gap: SPACING.xs,
-    paddingBottom: SPACING.xl + 8,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING['2xl'],
   },
-  avatarContainer: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+  heroContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.base,
+    marginBottom: SPACING.base,
+  },
+  avatarRing: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.35)',
+    padding: 3,
+  },
+  avatarInner: {
+    flex: 1,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: SPACING.sm,
   },
-  avatarText: { fontSize: 32, fontWeight: '800', color: '#fff' },
-  heroName: { fontSize: FONT_SIZES.xl, fontWeight: '800', color: '#fff' },
-  heroEmail: { fontSize: FONT_SIZES.sm, color: 'rgba(255,255,255,0.8)' },
-  heroPhone: { fontSize: FONT_SIZES.sm, color: 'rgba(255,255,255,0.8)' },
-  editBtn: {
+  avatarText: { fontSize: 22, fontWeight: '800', color: '#fff', letterSpacing: 1 },
+  heroInfo: { flex: 1 },
+  heroName: {
+    fontSize: FONT_SIZES.xl,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 6,
+  },
+  heroDetailRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 3,
+  },
+  heroDetail: {
+    fontSize: FONT_SIZES.xs,
+    color: 'rgba(255,255,255,0.75)',
+  },
+  editProfileBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: SPACING.base,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  editProfileBtnText: {
+    fontSize: FONT_SIZES.xs,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  statsCard: {
+    flexDirection: 'row',
+    marginHorizontal: SPACING.base,
+    borderRadius: BORDER_RADIUS.lg,
+    marginTop: -SPACING.base,
+    padding: SPACING.base,
+    ...SHADOWS.md,
+    alignItems: 'center',
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+  },
+  statItem: {
+    flex: 1,
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#fff',
-    borderRadius: BORDER_RADIUS.full,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 6,
-    marginTop: SPACING.sm,
   },
-  editBtnText: { fontSize: FONT_SIZES.xs, color: COLORS.primary, fontWeight: '700' },
-  statsRow: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.surface,
-    marginHorizontal: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
-    marginTop: -SPACING.md,
-    ...SHADOWS.md,
-    padding: SPACING.md,
-    justifyContent: 'space-around',
-  },
-  statItem: { alignItems: 'center', gap: 4 },
-  statValue: { fontSize: FONT_SIZES.xl, fontWeight: '800', color: COLORS.text },
-  statLabel: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary },
-  familyCard: {
-    backgroundColor: COLORS.surface,
-    margin: SPACING.md,
-    marginBottom: SPACING.xs,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-    ...SHADOWS.sm,
-  },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
-  cardTitle: { fontSize: FONT_SIZES.md, fontWeight: '700', color: COLORS.text },
-  addText: { fontSize: FONT_SIZES.sm, color: COLORS.primary, fontWeight: '700' },
-  familyMember: { alignItems: 'center', width: 70, gap: 4 },
-  familyAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
+  statIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
   },
-  familyAvatarText: { color: '#fff', fontWeight: '700', fontSize: FONT_SIZES.md },
-  familyName: { fontSize: FONT_SIZES.xs, fontWeight: '700', color: COLORS.text, textAlign: 'center' },
-  familyRelation: { fontSize: 10, color: COLORS.textSecondary, textAlign: 'center' },
-  toggleCard: {
+  statValue: { fontSize: FONT_SIZES.lg, fontWeight: '800' },
+  statLabel: { fontSize: 10, fontWeight: '500' },
+  darkModeCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: COLORS.surface,
-    marginHorizontal: SPACING.md,
-    marginBottom: SPACING.xs,
+    marginHorizontal: SPACING.base,
+    marginTop: SPACING.base,
     borderRadius: BORDER_RADIUS.lg,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm + 2,
+    paddingHorizontal: SPACING.base,
+    paddingVertical: SPACING.md,
     ...SHADOWS.sm,
   },
-  toggleLeft: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  toggle: {
-    width: 44,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: COLORS.border,
-    justifyContent: 'center',
-    paddingHorizontal: 2,
+  darkModeLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
   },
-  toggleOn: { backgroundColor: COLORS.primary },
-  toggleThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff' },
-  toggleThumbOn: { alignSelf: 'flex-end' },
-  menuSection: { marginTop: SPACING.sm },
-  sectionTitle: {
+  darkModeTitle: {
     fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+  },
+  darkModeSub: {
+    fontSize: 10,
+    marginTop: 1,
+  },
+  menuSection: { marginTop: SPACING.lg },
+  sectionTitle: {
+    fontSize: 11,
     fontWeight: '700',
-    color: COLORS.textSecondary,
-    marginHorizontal: SPACING.md,
-    marginBottom: SPACING.xs,
+    marginHorizontal: SPACING.base,
+    marginBottom: SPACING.sm,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   menuCard: {
-    backgroundColor: COLORS.surface,
-    marginHorizontal: SPACING.md,
+    marginHorizontal: SPACING.base,
     borderRadius: BORDER_RADIUS.lg,
     ...SHADOWS.sm,
+    overflow: 'hidden',
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm + 2,
+    paddingHorizontal: SPACING.base,
+    paddingVertical: 14,
     gap: SPACING.md,
   },
-  menuItemBorder: { borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  menuItemBorder: { borderBottomWidth: 1 },
   menuIconBox: {
     width: 36,
     height: 36,
-    borderRadius: BORDER_RADIUS.sm,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  menuLabel: { flex: 1, fontSize: FONT_SIZES.sm, color: COLORS.text, fontWeight: '500' },
+  menuLabel: {
+    flex: 1,
+    fontSize: FONT_SIZES.md,
+    fontWeight: '500',
+  },
   logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: SPACING.sm,
-    margin: SPACING.md,
-    backgroundColor: '#fee2e2',
+    marginHorizontal: SPACING.base,
+    marginTop: SPACING['2xl'],
     borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: '#fecaca',
   },
-  logoutText: { fontSize: FONT_SIZES.md, color: COLORS.error, fontWeight: '700' },
-  version: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary, textAlign: 'center', marginBottom: SPACING.lg },
+  logoutText: { fontSize: FONT_SIZES.md, color: COLORS.error, fontWeight: '600' },
+  version: {
+    fontSize: FONT_SIZES.xs,
+    textAlign: 'center',
+    marginTop: SPACING.base,
+    marginBottom: SPACING.lg,
+  },
 });

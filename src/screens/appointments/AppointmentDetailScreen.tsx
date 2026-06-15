@@ -4,114 +4,175 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { COLORS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
+import { useTheme } from '../../context/ThemeContext';
 import { useAppointment } from '../../hooks';
-import { AppointmentsStackParamList } from '../../types';
-import { Button, StarRating } from '../../components/common';
+import { AppointmentStackParamList } from '../../types';
+import { StarRating } from '../../components/common';
 import { formatDate } from '../../utils';
 
-type Nav = NativeStackNavigationProp<AppointmentsStackParamList, 'AppointmentDetail'>;
-type Route = RouteProp<AppointmentsStackParamList, 'AppointmentDetail'>;
+type Nav = NativeStackNavigationProp<AppointmentStackParamList, 'AppointmentDetail'>;
+type Route = RouteProp<AppointmentStackParamList, 'AppointmentDetail'>;
+
+const STATUS_CONFIG: Record<string, { bg: string[]; text: string; icon: string; label: string }> = {
+  upcoming: { bg: ['#EEF2FF', '#E0E7FF'], text: '#4338CA', icon: 'time-outline', label: 'Upcoming' },
+  confirmed: { bg: ['#EEF2FF', '#E0E7FF'], text: '#4338CA', icon: 'time-outline', label: 'Confirmed' },
+  completed: { bg: ['#ECFDF5', '#D1FAE5'], text: '#047857', icon: 'checkmark-circle', label: 'Completed' },
+  cancelled: { bg: ['#FEF2F2', '#FEE2E2'], text: '#B91C1C', icon: 'close-circle', label: 'Cancelled' },
+};
 
 export default function AppointmentDetailScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
+  const { colors } = useTheme();
   const { appointmentId } = route.params;
   const { data: appt, isLoading } = useAppointment(appointmentId);
 
   if (isLoading) {
-    return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
   }
   if (!appt) return null;
 
-  const isUpcoming = appt.status === 'upcoming';
-  const isCompleted = appt.status === 'completed';
+  const status = STATUS_CONFIG[appt.status.toLowerCase()] ?? STATUS_CONFIG.upcoming;
+  const isUpcoming = appt.status.toLowerCase() === 'upcoming' || appt.status.toLowerCase() === 'confirmed';
+  const isCompleted = appt.status.toLowerCase() === 'completed';
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      {/* Header */}
+      <View style={[styles.header, { backgroundColor: colors.card }]}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Appointment Details</Text>
+        <View style={{ width: 36 }} />
+      </View>
+
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-        {/* Doctor card */}
-        <View style={styles.doctorCard}>
-          <Image source={{ uri: appt.doctor.avatar }} style={styles.avatar} />
-          <View>
-            <Text style={styles.docName}>{appt.doctor.name}</Text>
-            <Text style={styles.docSpec}>{appt.doctor.specialization}</Text>
-            <StarRating rating={appt.doctor.rating} size={14} showCount reviewCount={appt.doctor.reviewCount} />
+        {/* Status Banner */}
+        <LinearGradient colors={status.bg as [string, string]} style={styles.statusBanner}>
+          <View style={[styles.statusIconCircle, { backgroundColor: status.text + '15' }]}>
+            <Ionicons name={status.icon as any} size={22} color={status.text} />
           </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.statusLabel, { color: status.text }]}>{status.label}</Text>
+            <Text style={[styles.statusSub, { color: status.text + 'AA' }]}>
+              {isUpcoming ? 'Your appointment is confirmed' : isCompleted ? 'Appointment completed successfully' : 'This appointment was cancelled'}
+            </Text>
+          </View>
+        </LinearGradient>
+
+        {/* Doctor Card */}
+        <View style={[styles.doctorCard, { backgroundColor: colors.card }]}>
+          <Image source={{ uri: appt.doctor.avatar }} style={styles.avatar} />
+          <View style={styles.doctorInfo}>
+            <Text style={[styles.docName, { color: colors.textPrimary }]}>{appt.doctor.name}</Text>
+            <Text style={styles.docSpec}>{appt.doctor.specialization}</Text>
+            <View style={styles.ratingRow}>
+              <StarRating rating={appt.doctor.rating} size={13} />
+              <Text style={[styles.reviewCount, { color: colors.textTertiary }]}>({appt.doctor.reviewCount})</Text>
+            </View>
+          </View>
+          {isUpcoming && (
+            <TouchableOpacity style={styles.callIconBtn}>
+              <Ionicons name="call" size={18} color="#fff" />
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Status banner */}
-        <View style={[styles.statusBanner, {
-          backgroundColor: appt.status === 'upcoming' ? '#dbeafe' :
-            appt.status === 'completed' ? '#dcfce7' : '#fee2e2'
-        }]}>
-          <Ionicons
-            name={appt.status === 'upcoming' ? 'time-outline' : appt.status === 'completed' ? 'checkmark-circle' : 'close-circle'}
-            size={20}
-            color={appt.status === 'upcoming' ? '#1d4ed8' : appt.status === 'completed' ? '#15803d' : '#dc2626'}
-          />
-          <Text style={[styles.statusText, {
-            color: appt.status === 'upcoming' ? '#1d4ed8' :
-              appt.status === 'completed' ? '#15803d' : '#dc2626'
-          }]}>
-            {appt.status.charAt(0).toUpperCase() + appt.status.slice(1)}
-          </Text>
-        </View>
-
-        {/* Appointment info */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Appointment Info</Text>
+        {/* Appointment Details */}
+        <View style={[styles.card, { backgroundColor: colors.card }]}>
+          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Appointment Info</Text>
           {[
-            { icon: 'calendar-outline', label: 'Date', value: formatDate(appt.date) },
-            { icon: 'time-outline', label: 'Time', value: appt.time },
-            { icon: 'business-outline', label: 'Hospital', value: appt.doctor.hospital },
-            { icon: 'videocam-outline', label: 'Type', value: appt.type === 'video' ? 'Video Consultation' : 'Clinic Visit' },
-            { icon: 'receipt-outline', label: 'Booking ID', value: appt.id },
-          ].map(({ icon, label, value }) => (
-            <View key={label} style={styles.infoRow}>
-              <Ionicons name={icon as any} size={16} color={COLORS.textSecondary} />
-              <Text style={styles.infoLabel}>{label}</Text>
-              <Text style={styles.infoValue}>{value}</Text>
+            { icon: 'calendar-outline', label: 'Date', value: formatDate(appt.date), color: '#7c3aed' },
+            { icon: 'time-outline', label: 'Time', value: appt.time, color: '#0891b2' },
+            { icon: 'business-outline', label: 'Hospital', value: appt.doctor.hospital, color: '#059669' },
+            { icon: 'videocam-outline', label: 'Type', value: appt.type === 'Video' ? 'Video Consultation' : 'In-Clinic Visit', color: '#0066CC' },
+            { icon: 'receipt-outline', label: 'Booking ID', value: appt.id.toUpperCase(), color: '#6b7280' },
+          ].map(({ icon, label, value, color }, index) => (
+            <View key={label} style={[styles.infoRow, index > 0 && [styles.infoRowBorder, { borderTopColor: colors.border }]]}>
+              <View style={[styles.infoIconBox, { backgroundColor: color + '12' }]}>
+                <Ionicons name={icon as any} size={16} color={color} />
+              </View>
+              <Text style={[styles.infoLabel, { color: colors.textTertiary }]}>{label}</Text>
+              <Text style={[styles.infoValue, { color: colors.textPrimary }]} numberOfLines={1}>{value}</Text>
             </View>
           ))}
         </View>
 
-        {/* Payment info */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Payment Info</Text>
-          <View style={styles.infoRow}>
-            <Ionicons name="card-outline" size={16} color={COLORS.textSecondary} />
-            <Text style={styles.infoLabel}>Amount Paid</Text>
-            <Text style={[styles.infoValue, { color: COLORS.primary, fontWeight: '800' }]}>₹{appt.fee}</Text>
+        {/* Payment */}
+        <View style={[styles.card, { backgroundColor: colors.card }]}>
+          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Payment Summary</Text>
+          <View style={styles.paymentRow}>
+            <Text style={[styles.paymentLabel, { color: colors.textSecondary }]}>Consultation Fee</Text>
+            <Text style={[styles.paymentValue, { color: colors.textPrimary }]}>₹{appt.amount}</Text>
           </View>
-          <View style={styles.infoRow}>
-            <Ionicons name="checkmark-circle-outline" size={16} color={COLORS.success} />
-            <Text style={styles.infoLabel}>Status</Text>
-            <Text style={[styles.infoValue, { color: COLORS.success }]}>Paid</Text>
+          <View style={[styles.paymentDivider, { backgroundColor: colors.border }]} />
+          <View style={styles.paymentRow}>
+            <Text style={[styles.paymentLabel, { color: colors.textPrimary, fontWeight: '700' }]}>Total Paid</Text>
+            <Text style={styles.paymentTotal}>₹{appt.amount}</Text>
+          </View>
+          <View style={styles.paidBadge}>
+            <Ionicons name="checkmark-circle" size={14} color="#047857" />
+            <Text style={styles.paidBadgeText}>Payment Successful</Text>
           </View>
         </View>
 
-        {/* Prescription (if completed) */}
+        {/* Prescription */}
         {isCompleted && appt.prescription && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Prescription</Text>
+          <View style={[styles.card, { backgroundColor: colors.card }]}>
+            <View style={styles.cardTitleRow}>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Prescription</Text>
+              <TouchableOpacity>
+                <Ionicons name="download-outline" size={20} color={COLORS.primary} />
+              </TouchableOpacity>
+            </View>
             {appt.prescription.medicines.map((med: any, i: number) => (
-              <View key={i} style={styles.medRow}>
-                <Text style={styles.medName}>{med.name}</Text>
-                <Text style={styles.medDosage}>{med.dosage} • {med.duration}</Text>
+              <View key={i} style={[styles.medItem, { backgroundColor: colors.background }]}>
+                <View style={styles.medPill}>
+                  <Ionicons name="medical" size={14} color={COLORS.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.medName, { color: colors.textPrimary }]}>{med.name}</Text>
+                  <Text style={[styles.medDosage, { color: colors.textSecondary }]}>{med.dosage} · {med.duration}</Text>
+                  {med.instructions && (
+                    <Text style={[styles.medInstructions, { color: colors.textTertiary }]}>{med.instructions}</Text>
+                  )}
+                </View>
               </View>
             ))}
-            <Text style={styles.doctorNotes}>Dr. Notes: {appt.prescription.notes}</Text>
+            {appt.prescription.notes && (
+              <View style={[styles.notesBox, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
+                <Ionicons name="chatbubble-ellipses-outline" size={14} color="#92400E" />
+                <Text style={styles.notesText}>{appt.prescription.notes}</Text>
+              </View>
+            )}
           </View>
         )}
 
         {/* Actions */}
         {isUpcoming && (
-          <View style={styles.actionsCard}>
-            <Button title="Join Video Call" onPress={() => {}} variant="primary" />
-            <Button title="Reschedule" onPress={() => {}} variant="outline" />
-            <Button title="Cancel Appointment" onPress={() => {}} variant="danger" />
+          <View style={styles.actionsSection}>
+            <TouchableOpacity style={styles.primaryAction} activeOpacity={0.85}>
+              <Ionicons name="videocam" size={18} color="#fff" />
+              <Text style={styles.primaryActionText}>Join Video Call</Text>
+            </TouchableOpacity>
+            <View style={styles.secondaryActions}>
+              <TouchableOpacity style={[styles.secondaryAction, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Ionicons name="swap-horizontal-outline" size={16} color={COLORS.primary} />
+                <Text style={styles.secondaryActionText}>Reschedule</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.secondaryAction, { backgroundColor: colors.card, borderColor: '#fecaca' }]}>
+                <Ionicons name="close-circle-outline" size={16} color={COLORS.error} />
+                <Text style={[styles.secondaryActionText, { color: COLORS.error }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
       </ScrollView>
@@ -120,48 +181,237 @@ export default function AppointmentDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  doctorCard: {
+  container: { flex: 1 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    margin: SPACING.md,
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-    ...SHADOWS.sm,
-    gap: SPACING.md,
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
   },
-  avatar: { width: 70, height: 70, borderRadius: 35 },
-  docName: { fontSize: FONT_SIZES.lg, fontWeight: '700', color: COLORS.text },
-  docSpec: { fontSize: FONT_SIZES.sm, color: COLORS.primary, fontWeight: '600', marginBottom: 4 },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
   statusBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
-    marginHorizontal: SPACING.md,
-    marginBottom: SPACING.sm,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
-  },
-  statusText: { fontSize: FONT_SIZES.md, fontWeight: '700' },
-  card: {
-    backgroundColor: COLORS.surface,
-    marginHorizontal: SPACING.md,
-    marginBottom: SPACING.sm,
+    gap: SPACING.md,
+    marginHorizontal: SPACING.base,
+    marginBottom: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
+    padding: SPACING.base,
+  },
+  statusIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusLabel: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '700',
+  },
+  statusSub: {
+    fontSize: FONT_SIZES.xs,
+    marginTop: 2,
+  },
+  doctorCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: SPACING.base,
+    marginBottom: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.base,
+    ...SHADOWS.sm,
+    gap: SPACING.md,
+  },
+  avatar: { width: 56, height: 56, borderRadius: 28 },
+  doctorInfo: { flex: 1 },
+  docName: { fontSize: FONT_SIZES.base, fontWeight: '700', marginBottom: 2 },
+  docSpec: { fontSize: FONT_SIZES.xs, color: COLORS.primary, fontWeight: '600', marginBottom: 4 },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  reviewCount: { fontSize: FONT_SIZES.xs },
+  callIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  card: {
+    marginHorizontal: SPACING.base,
+    marginBottom: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.base,
     ...SHADOWS.sm,
   },
-  cardTitle: { fontSize: FONT_SIZES.md, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.sm },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: 8 },
-  infoLabel: { flex: 1, fontSize: FONT_SIZES.sm, color: COLORS.textSecondary },
-  infoValue: { fontSize: FONT_SIZES.sm, color: COLORS.text, fontWeight: '600', textAlign: 'right', maxWidth: '55%' },
-  medRow: { marginBottom: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingBottom: 8 },
-  medName: { fontSize: FONT_SIZES.sm, fontWeight: '700', color: COLORS.text },
-  medDosage: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary },
-  doctorNotes: { fontSize: FONT_SIZES.sm, color: COLORS.textSecondary, fontStyle: 'italic', marginTop: SPACING.sm },
-  actionsCard: {
-    margin: SPACING.md,
+  cardTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  cardTitle: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '700',
+    marginBottom: SPACING.md,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    paddingVertical: 10,
+  },
+  infoRowBorder: {
+    borderTopWidth: 1,
+  },
+  infoIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoLabel: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '500',
+    width: 70,
+  },
+  infoValue: {
+    flex: 1,
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    textAlign: 'right',
+  },
+  paymentRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  paymentLabel: {
+    fontSize: FONT_SIZES.sm,
+  },
+  paymentValue: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+  },
+  paymentDivider: {
+    height: 1,
+    marginVertical: SPACING.sm,
+  },
+  paymentTotal: {
+    fontSize: FONT_SIZES.base,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  paidBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ECFDF5',
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 8,
+    marginTop: SPACING.sm,
+    alignSelf: 'flex-start',
+  },
+  paidBadgeText: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '600',
+    color: '#047857',
+  },
+  medItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  medPill: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: COLORS.primaryUltraLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  medName: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  medDosage: {
+    fontSize: FONT_SIZES.xs,
+  },
+  medInstructions: {
+    fontSize: 10,
+    marginTop: 2,
+    fontStyle: 'italic',
+  },
+  notesBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    borderWidth: 1,
+    marginTop: SPACING.xs,
+  },
+  notesText: {
+    flex: 1,
+    fontSize: FONT_SIZES.xs,
+    color: '#92400E',
+    lineHeight: 18,
+  },
+  actionsSection: {
+    paddingHorizontal: SPACING.base,
+    gap: SPACING.sm,
+  },
+  primaryAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.lg,
+    paddingVertical: 14,
+  },
+  primaryActionText: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  secondaryActions: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  secondaryAction: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.lg,
+    paddingVertical: 12,
+  },
+  secondaryActionText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    color: COLORS.primary,
   },
 });

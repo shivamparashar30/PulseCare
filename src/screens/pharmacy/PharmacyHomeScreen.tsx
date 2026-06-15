@@ -9,11 +9,14 @@ import {
   Image,
   StyleSheet,
   RefreshControl,
+  Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import * as ImagePicker from 'expo-image-picker';
 
 import { COLORS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS, MEDICINE_CATEGORIES } from '../../constants';
 import { useTheme } from '../../context/ThemeContext';
@@ -32,6 +35,51 @@ export default function PharmacyHomeScreen() {
 
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
+  const [prescriptionImage, setPrescriptionImage] = useState<string | null>(null);
+  const [showPrescription, setShowPrescription] = useState(false);
+
+  const handleUploadPrescription = () => {
+    Alert.alert('Upload Prescription', 'Choose an option', [
+      {
+        text: 'Camera',
+        onPress: async () => {
+          const permission = await ImagePicker.requestCameraPermissionsAsync();
+          if (!permission.granted) {
+            Alert.alert('Permission needed', 'Camera access is required to take a photo.');
+            return;
+          }
+          const result = await ImagePicker.launchCameraAsync({
+            quality: 0.8,
+            allowsEditing: true,
+          });
+          if (!result.canceled && result.assets[0]) {
+            setPrescriptionImage(result.assets[0].uri);
+            setShowPrescription(true);
+          }
+        },
+      },
+      {
+        text: 'Gallery',
+        onPress: async () => {
+          const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (!permission.granted) {
+            Alert.alert('Permission needed', 'Gallery access is required to pick an image.');
+            return;
+          }
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            quality: 0.8,
+            allowsEditing: true,
+          });
+          if (!result.canceled && result.assets[0]) {
+            setPrescriptionImage(result.assets[0].uri);
+            setShowPrescription(true);
+          }
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
 
   const filtered = useMemo(() => {
     let list = [...medicines];
@@ -64,13 +112,10 @@ export default function PharmacyHomeScreen() {
       activeOpacity={0.9}
     >
       {item.discountPercent > 0 && <DiscountBadge percent={item.discountPercent} />}
-      <View style={[styles.medImageContainer, { backgroundColor: colors.background }]}>
-        <Ionicons
-          name={item.dosageForm === 'Tablet' ? 'tablet-portrait-outline' : item.dosageForm === 'Capsule' ? 'ellipse-outline' : item.dosageForm === 'Syrup' ? 'flask-outline' : 'medical-outline'}
-          size={36}
-          color={COLORS.primary}
-        />
-      </View>
+      <Image
+        source={{ uri: item.image }}
+        style={[styles.medImage, { backgroundColor: colors.background }]}
+      />
       <Text style={[styles.medName, { color: colors.textPrimary }]} numberOfLines={2}>{item.name}</Text>
       <Text style={[styles.medCompany, { color: colors.textSecondary }]} numberOfLines={1}>{item.company}</Text>
       <PriceDisplay price={item.price} discountedPrice={item.discountedPrice} size="sm" />
@@ -156,15 +201,65 @@ export default function PharmacyHomeScreen() {
         {/* Promo banner */}
         {!search && activeCategory === 'All' && (
           <View style={[styles.promoBanner, { backgroundColor: COLORS.primaryUltraLight }]}>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={styles.promoTitle}>Upload Prescription</Text>
               <Text style={[styles.promoSub, { color: colors.textSecondary }]}>Get medicines delivered at home</Text>
             </View>
-            <TouchableOpacity style={styles.promoBtn}>
+            <TouchableOpacity style={styles.promoBtn} onPress={handleUploadPrescription}>
               <Text style={styles.promoBtnText}>Upload</Text>
             </TouchableOpacity>
           </View>
         )}
+
+        {/* Uploaded prescription preview */}
+        {prescriptionImage && (
+          <TouchableOpacity
+            style={[styles.prescriptionPreview, { backgroundColor: colors.card }]}
+            onPress={() => setShowPrescription(true)}
+          >
+            <Image source={{ uri: prescriptionImage }} style={styles.prescriptionThumb} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.prescriptionTitle, { color: colors.textPrimary }]}>Prescription Uploaded</Text>
+              <Text style={[styles.prescriptionSub, { color: colors.textSecondary }]}>Tap to view full image</Text>
+            </View>
+            <TouchableOpacity onPress={() => { setPrescriptionImage(null); setShowPrescription(false); }}>
+              <Ionicons name="close-circle" size={22} color={COLORS.error} />
+            </TouchableOpacity>
+          </TouchableOpacity>
+        )}
+
+        {/* Prescription full view modal */}
+        <Modal visible={showPrescription} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <SafeAreaView style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Prescription</Text>
+                <TouchableOpacity onPress={() => setShowPrescription(false)}>
+                  <Ionicons name="close" size={28} color="#fff" />
+                </TouchableOpacity>
+              </View>
+              {prescriptionImage && (
+                <Image source={{ uri: prescriptionImage }} style={styles.prescriptionFull} resizeMode="contain" />
+              )}
+              <View style={styles.modalActions}>
+                <TouchableOpacity style={styles.modalBtn} onPress={handleUploadPrescription}>
+                  <Ionicons name="camera-outline" size={20} color="#fff" />
+                  <Text style={styles.modalBtnText}>Retake</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalBtn, { backgroundColor: COLORS.success }]}
+                  onPress={() => {
+                    setShowPrescription(false);
+                    Alert.alert('Submitted', 'Your prescription has been submitted. Our pharmacist will review it and prepare your order.');
+                  }}
+                >
+                  <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                  <Text style={styles.modalBtnText}>Submit</Text>
+                </TouchableOpacity>
+              </View>
+            </SafeAreaView>
+          </View>
+        </Modal>
 
         {/* Popular / Search results */}
         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
@@ -283,12 +378,11 @@ const styles = StyleSheet.create({
     position: 'relative' as const,
     overflow: 'hidden' as const,
   },
-  medImageContainer: {
+  medImage: {
     width: '100%' as any,
     height: 90,
     borderRadius: BORDER_RADIUS.md,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
+    resizeMode: 'cover' as const,
     marginBottom: SPACING.sm,
   },
   medName: { fontSize: FONT_SIZES.sm, fontWeight: '700' as const, marginBottom: 2 },
@@ -312,4 +406,71 @@ const styles = StyleSheet.create({
     marginTop: SPACING.sm,
   },
   outOfStockText: { fontSize: FONT_SIZES.sm, fontWeight: '600' as const },
+  prescriptionPreview: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    margin: SPACING.md,
+    marginTop: 0,
+    padding: SPACING.sm,
+    borderRadius: BORDER_RADIUS.lg,
+    gap: SPACING.sm,
+  },
+  prescriptionThumb: {
+    width: 50,
+    height: 50,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  prescriptionTitle: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600' as const,
+  },
+  prescriptionSub: {
+    fontSize: FONT_SIZES.xs,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'space-between' as const,
+  },
+  modalHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  modalTitle: {
+    color: '#fff',
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700' as const,
+  },
+  prescriptionFull: {
+    flex: 1,
+    width: '100%' as any,
+    marginVertical: SPACING.md,
+  },
+  modalActions: {
+    flexDirection: 'row' as const,
+    justifyContent: 'center' as const,
+    gap: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.lg,
+  },
+  modalBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    gap: SPACING.xs,
+  },
+  modalBtnText: {
+    color: '#fff',
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600' as const,
+  },
 });

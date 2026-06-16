@@ -32,7 +32,8 @@
     "zustand": "^4.5.4",
     "@healthcare/core": "workspace:*",
     "@healthcare/shared": "workspace:*",
-    "@healthcare/providers": "workspace:*"
+    "@healthcare/providers": "workspace:*",
+    "@healthcare/supabase": "workspace:*"
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",

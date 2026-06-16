@@ -8,6 +8,7 @@
     "dev:doctor": "pnpm --filter @healthcare/doctor dev",
     "dev:medical-store": "pnpm --filter @healthcare/medical-store dev",
     "dev:diagnostics": "pnpm --filter @healthcare/diagnostics dev",
+    "dev:admin": "pnpm --filter @healthcare/admin dev",
     "android:patient": "pnpm --filter @healthcare/patient android",
     "android:doctor": "pnpm --filter @healthcare/doctor android",
     "android:medical-store": "pnpm --filter @healthcare/medical-store android",

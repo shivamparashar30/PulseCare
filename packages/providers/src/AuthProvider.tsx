@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase, signIn, signUp, signOut, getProfile, onAuthStateChange } from '../../supabase/src';
 import { User } from '../../core/src/types';
+import { UserRole } from '../../supabase/src/database.types';
 
 // ============================================
 // AUTH CONTEXT
@@ -20,74 +21,84 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock user data
-const MOCK_USER: User = {
-  id: 'u1',
-  name: 'John Doe',
-  email: 'john.doe@email.com',
-  phone: '+91-9876543210',
-  avatar: 'https://randomuser.me/api/portraits/men/1.jpg',
-  dateOfBirth: '1990-05-15',
-  gender: 'Male',
-  bloodGroup: 'O+',
-  address: {
-    id: 'addr1',
-    label: 'Home',
-    line1: '123, MG Road',
-    line2: 'Indiranagar',
-    city: 'Bangalore',
-    state: 'Karnataka',
-    pincode: '560038',
-    isDefault: true,
-  },
-  familyMembers: [
-    { id: 'fm1', name: 'Jane Doe', relation: 'Spouse', age: 32, gender: 'Female', bloodGroup: 'A+' },
-    { id: 'fm2', name: 'Tom Doe', relation: 'Son', age: 8, gender: 'Male', bloodGroup: 'O+' },
-  ],
-};
-
-const AUTH_STORAGE_KEY = '@auth_user';
-const GUEST_STORAGE_KEY = '@auth_guest';
-
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load persisted auth state on mount
+  // Convert Supabase profile to app User type
+  const profileToUser = (profile: any, email: string): User => ({
+    id: profile.id,
+    name: profile.full_name || '',
+    email: email,
+    phone: profile.phone || '',
+    avatar: profile.avatar_url || 'https://randomuser.me/api/portraits/men/1.jpg',
+    dateOfBirth: '',
+    gender: '',
+    bloodGroup: '',
+    address: undefined,
+    familyMembers: [],
+  });
+
+  // Listen for auth state changes
   useEffect(() => {
-    (async () => {
-      try {
-        const [storedUser, storedGuest] = await Promise.all([
-          AsyncStorage.getItem(AUTH_STORAGE_KEY),
-          AsyncStorage.getItem(GUEST_STORAGE_KEY),
-        ]);
-        if (storedUser) {
-          setUser(JSON.parse(storedUser));
-        } else if (storedGuest === 'true') {
-          setIsGuest(true);
-        }
-      } catch {
-        // ignore read errors
-      } finally {
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        getProfile(session.user.id)
+          .then(profile => {
+            setUser(profileToUser(profile, session.user.email || ''));
+          })
+          .catch(() => {
+            // Profile might not exist yet, use basic info
+            setUser({
+              id: session.user.id,
+              name: session.user.user_metadata?.full_name || '',
+              email: session.user.email || '',
+              phone: session.user.user_metadata?.phone || '',
+              avatar: 'https://randomuser.me/api/portraits/men/1.jpg',
+              dateOfBirth: '',
+              gender: '',
+              bloodGroup: '',
+              address: undefined,
+              familyMembers: [],
+            });
+          })
+          .finally(() => setIsLoading(false));
+      } else {
         setIsLoading(false);
       }
-    })();
+    });
+
+    // Subscribe to auth changes
+    const { data: { subscription } } = onAuthStateChange((session) => {
+      if (session?.user) {
+        getProfile(session.user.id)
+          .then(profile => {
+            setUser(profileToUser(profile, session.user.email || ''));
+          })
+          .catch(() => {});
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const login = useCallback(async (email: string, _password: string): Promise<boolean> => {
+  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      const userData = { ...MOCK_USER, email };
-      setUser(userData);
-      setIsGuest(false);
-      await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(userData));
-      await AsyncStorage.removeItem(GUEST_STORAGE_KEY);
-      return true;
-    } catch {
+      const { session } = await signIn({ email, password });
+      if (session?.user) {
+        const profile = await getProfile(session.user.id);
+        setUser(profileToUser(profile, email));
+        setIsGuest(false);
+        return true;
+      }
+      return false;
+    } catch (error: any) {
+      console.error('Login error:', error.message);
       return false;
     } finally {
       setIsLoading(false);
@@ -95,17 +106,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const signup = useCallback(
-    async (name: string, email: string, phone: string, _password: string): Promise<boolean> => {
+    async (name: string, email: string, phone: string, password: string): Promise<boolean> => {
       setIsLoading(true);
       try {
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        const userData = { ...MOCK_USER, name, email, phone };
-        setUser(userData);
-        setIsGuest(false);
-        await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(userData));
-        await AsyncStorage.removeItem(GUEST_STORAGE_KEY);
+        await signUp({
+          email,
+          password,
+          fullName: name,
+          phone,
+          role: 'patient' as UserRole,
+        });
+        // Auto sign in after signup
+        const { session } = await signIn({ email, password });
+        if (session?.user) {
+          const profile = await getProfile(session.user.id);
+          setUser(profileToUser(profile, email));
+          setIsGuest(false);
+          return true;
+        }
         return true;
-      } catch {
+      } catch (error: any) {
+        console.error('Signup error:', error.message);
         return false;
       } finally {
         setIsLoading(false);
@@ -115,24 +136,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   );
 
   const logout = useCallback(async () => {
+    try {
+      await signOut();
+    } catch {}
     setUser(null);
     setIsGuest(false);
-    await AsyncStorage.multiRemove([AUTH_STORAGE_KEY, GUEST_STORAGE_KEY]);
   }, []);
 
-  const continueAsGuest = useCallback(async () => {
+  const continueAsGuest = useCallback(() => {
     setIsGuest(true);
     setUser(null);
-    await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
-    await AsyncStorage.setItem(GUEST_STORAGE_KEY, 'true');
   }, []);
 
   const updateUser = useCallback((updates: Partial<User>) => {
     setUser((prev) => {
       if (!prev) return null;
-      const updated = { ...prev, ...updates };
-      AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updated));
-      return updated;
+      return { ...prev, ...updates };
     });
   }, []);
 

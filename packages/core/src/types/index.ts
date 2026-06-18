@@ -124,6 +124,9 @@ export interface Medicine {
   strength: string;
   packSize: string;
   isWishlisted?: boolean;
+  storeId?: string;
+  storeName?: string;
+  approvalStatus?: string;
 }
 
 export interface CartItem {
@@ -138,10 +141,15 @@ export interface Order {
   discount: number;
   deliveryFee: number;
   payableAmount: number;
-  status: 'Placed' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled';
+  status: 'pending' | 'confirmed' | 'processing' | 'ready' | 'out_for_delivery' | 'delivered' | 'cancelled' | 'rejected';
   placedAt: string;
   deliveryAddress: Address;
   paymentId?: string;
+  storeId?: string;
+  storeName?: string;
+  deliveryOtp?: string;
+  estimatedDeliveryMinutes?: number;
+  subtotal?: number;
 }
 
 // ============================================
@@ -185,14 +193,20 @@ export interface MedicalStore {
   id: string;
   name: string;
   address: string;
-  distance: string;
+  distance?: string;
   rating: number;
   phone: string;
   isOpen: boolean;
   openTime: string;
   closeTime: string;
   image: string;
-  services: string[];
+  services?: string[];
+  latitude?: number;
+  longitude?: number;
+  deliveryAvailable?: boolean;
+  deliveryRadiusKm?: number;
+  licenseNumber?: string;
+  medicineCount?: number;
 }
 
 // ============================================
@@ -236,9 +250,11 @@ export type HomeStackParamList = {
   HomeMain: undefined;
   Notifications: undefined;
   Search: undefined;
+  DiagnosticCenters: undefined;
+  CenterTests: { centerId: string; centerName: string };
   LabTests: undefined;
   LabTestDetail: { testId: string };
-  LabBooking: { testId: string };
+  LabBooking: { testId?: string; packageId?: string };
   MedicalStores: undefined;
   HealthPackages: undefined;
   HealthRecords: undefined;
@@ -248,8 +264,8 @@ export type DoctorStackParamList = {
   DoctorsList: undefined;
   DoctorDetail: { doctorId: string };
   BookAppointment: { doctorId: string };
-  AppointmentPayment: { doctorId: string; date: string; time: string; amount: number };
-  AppointmentSuccess: { appointmentId: string };
+  AppointmentPayment: { doctorId: string; date: string; time: string; visitType: string; fee: number };
+  AppointmentSuccess: { doctorId: string; date: string; time?: string; visitType: string; fee: number; paymentId?: string; orderId?: string; appointmentId?: string };
 };
 
 export type PharmacyStackParamList = {
@@ -259,6 +275,9 @@ export type PharmacyStackParamList = {
   Checkout: undefined;
   OrderSuccess: { orderId: string };
   Wishlist: undefined;
+  StoreDetail: { storeId: string };
+  MyOrders: undefined;
+  OrderTracking: { orderId: string };
 };
 
 export type AppointmentStackParamList = {
@@ -314,9 +333,12 @@ export interface Notification {
   id: string;
   title: string;
   message: string;
-  type: 'appointment' | 'order' | 'lab' | 'general';
+  type: string;
   isRead: boolean;
   createdAt: string;
+  actionType?: string;
+  actionId?: string;
+  role?: string;
 }
 
 export interface Category {

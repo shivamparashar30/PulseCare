@@ -5,108 +5,103 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { COLORS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../../../../../packages/core/src/constants';
+import { COLORS, FONT_SIZES, SPACING, BORDER_RADIUS } from '../../../../../../packages/core/src/constants';
 import { useDoctor } from '../../../../../../packages/core/src/hooks';
-import { DoctorsStackParamList } from '../../../../../../packages/core/src/types';
-import { Button } from '../../../../../../packages/shared/src/components';
+import { DoctorStackParamList } from '../../../../../../packages/core/src/types';
 
-type Nav = NativeStackNavigationProp<DoctorsStackParamList, 'AppointmentSuccess'>;
-type Route = RouteProp<DoctorsStackParamList, 'AppointmentSuccess'>;
+type Nav = NativeStackNavigationProp<DoctorStackParamList, 'AppointmentSuccess'>;
+type Route = RouteProp<DoctorStackParamList, 'AppointmentSuccess'>;
 
 export default function AppointmentSuccessScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
-  const { doctorId, date, time, visitType, fee, paymentId, orderId } = route.params;
+  const { doctorId, date, visitType, fee } = route.params;
   const { data: doctor } = useDoctor(doctorId);
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Success animation placeholder */}
-        <View style={styles.successCircle}>
-          <Ionicons name="checkmark-circle" size={80} color={COLORS.success} />
+        {/* Success animation area */}
+        <View style={styles.successArea}>
+          <View style={styles.successCircleOuter}>
+            <View style={styles.successCircleInner}>
+              <Ionicons name="checkmark" size={40} color="#fff" />
+            </View>
+          </View>
+          <Text style={styles.title}>Request Submitted!</Text>
+          <Text style={styles.subtitle}>
+            Your appointment request has been sent to the doctor. Once approved, you can pay to confirm your appointment.
+          </Text>
         </View>
-        <Text style={styles.title}>Appointment Booked!</Text>
-        <Text style={styles.subtitle}>
-          Your appointment has been confirmed. You will receive a reminder 1 hour before.
-        </Text>
 
-        {/* Appointment details */}
+        {/* Request Details */}
         <View style={styles.detailCard}>
-          <Text style={styles.cardTitle}>Appointment Details</Text>
-          <View style={styles.divider} />
+          <Text style={styles.cardTitle}>Request Details</Text>
           {[
             { icon: 'person-outline', label: 'Doctor', value: doctor?.name ?? '...' },
             { icon: 'medical-outline', label: 'Specialization', value: doctor?.specialization ?? '...' },
             { icon: 'business-outline', label: 'Hospital', value: doctor?.hospital ?? '...' },
-            { icon: 'calendar-outline', label: 'Date', value: new Date(date).toDateString() },
-            { icon: 'time-outline', label: 'Time', value: time },
-            {
-              icon: 'videocam-outline',
-              label: 'Consultation Type',
-              value: visitType === 'video' ? 'Video Consultation' : 'Clinic Visit',
-            },
-          ].map(({ icon, label, value }) => (
+            { icon: 'calendar-outline', label: 'Preferred Date', value: new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) },
+            { icon: visitType === 'video' ? 'videocam-outline' : 'business-outline', label: 'Type', value: visitType === 'video' ? 'Video Consultation' : 'Clinic Visit' },
+            { icon: 'cash-outline', label: 'Fee', value: `₹${fee}`, highlight: true },
+          ].map(({ icon, label, value, highlight }) => (
             <View key={label} style={styles.detailRow}>
-              <Ionicons name={icon as any} size={16} color={COLORS.textSecondary} />
+              <View style={styles.detailIcon}>
+                <Ionicons name={icon as any} size={14} color={COLORS.primary} />
+              </View>
               <Text style={styles.detailLabel}>{label}</Text>
-              <Text style={styles.detailValue}>{value}</Text>
+              <Text style={[styles.detailValue, highlight && { color: COLORS.primary, fontWeight: '800' }]}>{value}</Text>
             </View>
           ))}
         </View>
 
-        {/* Payment details */}
-        <View style={styles.payCard}>
-          <Text style={styles.cardTitle}>Payment Details</Text>
-          <View style={styles.divider} />
-          <View style={styles.detailRow}>
-            <Ionicons name="wallet-outline" size={16} color={COLORS.textSecondary} />
-            <Text style={styles.detailLabel}>Amount Paid</Text>
-            <Text style={[styles.detailValue, { color: COLORS.primary, fontWeight: '800' }]}>₹{fee}</Text>
+        {/* Status Card */}
+        <View style={styles.statusCard}>
+          <View style={styles.statusIconWrap}>
+            <Ionicons name="time" size={18} color="#D97706" />
           </View>
-          <View style={styles.detailRow}>
-            <Ionicons name="receipt-outline" size={16} color={COLORS.textSecondary} />
-            <Text style={styles.detailLabel}>Payment ID</Text>
-            <Text style={[styles.detailValue, { fontSize: FONT_SIZES.xs }]}>{paymentId}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Ionicons name="document-outline" size={16} color={COLORS.textSecondary} />
-            <Text style={styles.detailLabel}>Order ID</Text>
-            <Text style={[styles.detailValue, { fontSize: FONT_SIZES.xs }]}>{orderId}</Text>
-          </View>
-          <View style={styles.successBadge}>
-            <Ionicons name="shield-checkmark" size={14} color={COLORS.success} />
-            <Text style={styles.successBadgeText}>Payment Successful</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.statusTitle}>Awaiting Confirmation</Text>
+            <Text style={styles.statusDesc}>The doctor will review your request and confirm with a specific time slot.</Text>
           </View>
         </View>
 
-        {/* Instructions */}
-        <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>Instructions</Text>
+        {/* What happens next */}
+        <View style={styles.tipsCard}>
+          <Text style={styles.tipsTitle}>What happens next?</Text>
           {[
-            'Please arrive 10 minutes before your scheduled time',
-            'Carry your ID proof and any previous prescriptions',
-            'You will receive a confirmation SMS/email shortly',
-            'You can reschedule up to 2 hours before the appointment',
+            'The doctor will review your request',
+            'They will set a confirmed date & time slot',
+            'You\'ll see "Pay Now" button once approved',
+            'After payment, your appointment is confirmed!',
           ].map((tip, i) => (
             <View key={i} style={styles.tipRow}>
-              <View style={styles.tipDot} />
+              <View style={styles.tipNumWrap}>
+                <Text style={styles.tipNum}>{i + 1}</Text>
+              </View>
               <Text style={styles.tipText}>{tip}</Text>
             </View>
           ))}
         </View>
 
-        <View style={styles.actions}>
-          <Button
-            title="View My Appointments"
-            onPress={() => navigation.navigate('DoctorsList' as any)}
-            variant="primary"
-          />
-          <Button
-            title="Go to Home"
-            onPress={() => navigation.navigate('DoctorsList' as any)}
-            variant="outline"
-          />
+        {/* Buttons */}
+        <View style={styles.btnGroup}>
+          <TouchableOpacity
+            style={styles.primaryBtn}
+            onPress={() => navigation.getParent()?.navigate('Appointments')}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="calendar" size={18} color="#fff" />
+            <Text style={styles.primaryBtnText}>View My Appointments</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.secondaryBtn}
+            onPress={() => navigation.popToTop()}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="arrow-back" size={18} color={COLORS.primary} />
+            <Text style={styles.secondaryBtnText}>Back to Doctors</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -115,79 +110,122 @@ export default function AppointmentSuccessScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  scroll: { padding: SPACING.md, alignItems: 'center', paddingBottom: SPACING.xl },
-  successCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#f0fdf4',
+  scroll: { padding: SPACING.base, paddingBottom: 40 },
+  successArea: { alignItems: 'center', paddingTop: SPACING['2xl'], paddingBottom: SPACING.lg },
+  successCircleOuter: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: COLORS.successLight,
     justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: SPACING.lg,
+    marginBottom: SPACING.lg,
   },
-  title: { fontSize: FONT_SIZES.xxl, fontWeight: '800', color: COLORS.text, textAlign: 'center' },
+  successCircleInner: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: COLORS.success,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  title: { fontSize: 24, fontWeight: '800', color: COLORS.textPrimary, textAlign: 'center' },
   subtitle: {
-    fontSize: FONT_SIZES.sm,
+    fontSize: FONT_SIZES.md,
     color: COLORS.textSecondary,
     textAlign: 'center',
     marginTop: SPACING.sm,
-    marginBottom: SPACING.lg,
-    lineHeight: 22,
-    paddingHorizontal: SPACING.md,
+    lineHeight: 21,
+    paddingHorizontal: SPACING.lg,
   },
   detailCard: {
-    width: '100%',
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.card,
     borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-    ...SHADOWS.sm,
+    padding: SPACING.base,
     marginBottom: SPACING.md,
   },
-  payCard: {
-    width: '100%',
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-    ...SHADOWS.sm,
+  cardTitle: {
+    fontSize: FONT_SIZES.base,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
     marginBottom: SPACING.md,
   },
-  cardTitle: { fontSize: FONT_SIZES.md, fontWeight: '700', color: COLORS.text },
-  divider: { height: 1, backgroundColor: COLORS.border, marginVertical: SPACING.sm },
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
-    marginBottom: 10,
+    paddingVertical: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.divider,
+  },
+  detailIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: COLORS.primaryUltraLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.sm,
   },
   detailLabel: { flex: 1, fontSize: FONT_SIZES.sm, color: COLORS.textSecondary },
-  detailValue: { fontSize: FONT_SIZES.sm, color: COLORS.text, fontWeight: '600', textAlign: 'right', maxWidth: '55%' },
-  successBadge: {
+  detailValue: { fontSize: FONT_SIZES.sm, color: COLORS.textPrimary, fontWeight: '600' },
+  statusCard: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#f0fdf4',
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.sm,
-    marginTop: SPACING.xs,
-    alignSelf: 'flex-start',
-  },
-  successBadgeText: { fontSize: FONT_SIZES.xs, color: '#166534', fontWeight: '700' },
-  infoCard: {
-    width: '100%',
-    backgroundColor: '#eff6ff',
+    alignItems: 'flex-start',
+    gap: SPACING.md,
+    backgroundColor: '#FEF9EE',
     borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
+    padding: SPACING.base,
+    marginBottom: SPACING.md,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+  },
+  statusIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#FEF3C7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statusTitle: { fontSize: FONT_SIZES.md, fontWeight: '700', color: '#92400E' },
+  statusDesc: { fontSize: FONT_SIZES.sm, color: '#A16207', marginTop: 3, lineHeight: 19 },
+  tipsCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.base,
     marginBottom: SPACING.lg,
   },
-  infoTitle: { fontSize: FONT_SIZES.md, fontWeight: '700', color: COLORS.primary, marginBottom: SPACING.sm },
-  tipRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: 8 },
-  tipDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: COLORS.primary,
-    marginTop: 6,
+  tipsTitle: { fontSize: FONT_SIZES.base, fontWeight: '700', color: COLORS.textPrimary, marginBottom: SPACING.md },
+  tipRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, marginBottom: SPACING.md },
+  tipNumWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: COLORS.primaryUltraLight,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  tipText: { flex: 1, fontSize: FONT_SIZES.sm, color: COLORS.textSecondary, lineHeight: 20 },
-  actions: { width: '100%', gap: SPACING.sm },
+  tipNum: { fontSize: FONT_SIZES.sm, fontWeight: '700', color: COLORS.primary },
+  tipText: { flex: 1, fontSize: FONT_SIZES.md, color: COLORS.textSecondary, lineHeight: 20 },
+  btnGroup: { gap: SPACING.md },
+  primaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.md,
+    paddingVertical: 16,
+  },
+  primaryBtnText: { color: '#fff', fontSize: FONT_SIZES.base, fontWeight: '700' },
+  secondaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.primaryUltraLight,
+    borderRadius: BORDER_RADIUS.md,
+    paddingVertical: 16,
+  },
+  secondaryBtnText: { color: COLORS.primary, fontSize: FONT_SIZES.base, fontWeight: '700' },
 });

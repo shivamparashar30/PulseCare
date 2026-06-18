@@ -13,6 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { COLORS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../../../../../packages/core/src/constants';
+import { useTheme } from '../../../../../../packages/providers/src/ThemeProvider';
 import { PharmacyStackParamList } from '../../../../../../packages/core/src/types';
 import { useCart } from '../context/CartContext';
 import { Button, EmptyState } from '../../../../../../packages/shared/src/components';
@@ -21,6 +22,7 @@ type Nav = NativeStackNavigationProp<PharmacyStackParamList, 'Cart'>;
 
 export default function CartScreen() {
   const navigation = useNavigation<Nav>();
+  const { colors } = useTheme();
   const { items, removeFromCart, addToCart, totalAmount, discount, payableAmount, clearCart } = useCart();
 
   const FREE_DELIVERY_THRESHOLD = 499;
@@ -93,7 +95,7 @@ export default function CartScreen() {
           <View style={styles.cartItem}>
             <Image
               source={{
-                uri: `https://via.placeholder.com/60x60/${item.medicine.category === 'Tablet' ? '0066CC' : '00A86B'}/ffffff?text=${item.medicine.name.slice(0, 2)}`,
+                uri: item.medicine.image || `https://via.placeholder.com/60x60/0066CC/ffffff?text=${item.medicine.name.slice(0, 2)}`,
               }}
               style={styles.itemImage}
             />
@@ -152,11 +154,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.md,
   },
-  headerText: { fontSize: FONT_SIZES.md, fontWeight: '700', color: COLORS.text },
+  headerText: { fontSize: FONT_SIZES.md, fontWeight: '700', color: COLORS.textPrimary },
   clearText: { fontSize: FONT_SIZES.sm, color: COLORS.error, fontWeight: '600' },
   cartItem: {
     flexDirection: 'row',
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.white,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md,
     ...SHADOWS.sm,
@@ -165,12 +167,12 @@ const styles = StyleSheet.create({
   },
   itemImage: { width: 60, height: 60, borderRadius: BORDER_RADIUS.md },
   itemInfo: { flex: 1 },
-  itemName: { fontSize: FONT_SIZES.sm, fontWeight: '700', color: COLORS.text },
-  itemCompany: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary },
-  itemPack: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary, marginBottom: SPACING.xs },
+  itemName: { fontSize: FONT_SIZES.sm, fontWeight: '700', color: COLORS.textPrimary },
+  itemCompany: { fontSize: FONT_SIZES.xs, color: COLORS.textPrimarySecondary },
+  itemPack: { fontSize: FONT_SIZES.xs, color: COLORS.textPrimarySecondary, marginBottom: SPACING.xs },
   priceQtyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  itemPrice: { fontSize: FONT_SIZES.md, fontWeight: '800', color: COLORS.text },
-  itemMrp: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary, textDecorationLine: 'line-through' },
+  itemPrice: { fontSize: FONT_SIZES.md, fontWeight: '800', color: COLORS.textPrimary },
+  itemMrp: { fontSize: FONT_SIZES.xs, color: COLORS.textPrimarySecondary, textDecorationLine: 'line-through' },
   qtyControls: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   qtyBtn: {
     width: 28,
@@ -181,18 +183,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  qty: { fontSize: FONT_SIZES.md, fontWeight: '800', color: COLORS.text, minWidth: 20, textAlign: 'center' },
+  qty: { fontSize: FONT_SIZES.md, fontWeight: '800', color: COLORS.textPrimary, minWidth: 20, textAlign: 'center' },
   summaryCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.white,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md,
     ...SHADOWS.sm,
     marginTop: SPACING.sm,
   },
-  summaryTitle: { fontSize: FONT_SIZES.md, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.sm },
+  summaryTitle: { fontSize: FONT_SIZES.md, fontWeight: '700', color: COLORS.textPrimary, marginBottom: SPACING.sm },
   row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  rowLabel: { fontSize: FONT_SIZES.sm, color: COLORS.textSecondary },
-  rowValue: { fontSize: FONT_SIZES.sm, color: COLORS.text, fontWeight: '600' },
+  rowLabel: { fontSize: FONT_SIZES.sm, color: COLORS.textPrimarySecondary },
+  rowValue: { fontSize: FONT_SIZES.sm, color: COLORS.textPrimary, fontWeight: '600' },
   freeDeliveryNote: {
     fontSize: FONT_SIZES.xs,
     color: COLORS.primary,
@@ -203,7 +205,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   divider: { height: 1, backgroundColor: COLORS.border, marginVertical: SPACING.sm },
-  totalLabel: { fontSize: FONT_SIZES.md, fontWeight: '700', color: COLORS.text },
+  totalLabel: { fontSize: FONT_SIZES.md, fontWeight: '700', color: COLORS.textPrimary },
   totalValue: { fontSize: FONT_SIZES.lg, fontWeight: '800', color: COLORS.primary },
   savingsBadge: {
     flexDirection: 'row',
@@ -224,11 +226,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: SPACING.md,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.white,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
     ...SHADOWS.lg,
   },
-  footerLabel: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary },
+  footerLabel: { fontSize: FONT_SIZES.xs, color: COLORS.textPrimarySecondary },
   footerTotal: { fontSize: FONT_SIZES.xl, fontWeight: '800', color: COLORS.primary },
 });

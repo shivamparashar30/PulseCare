@@ -36,12 +36,17 @@ import CartScreen from '../../../../apps/patient/src/features/medicalStore/scree
 import CheckoutScreen from '../../../../apps/patient/src/features/medicalStore/screens/CheckoutScreen';
 import OrderSuccessScreen from '../../../../apps/patient/src/features/medicalStore/screens/OrderSuccessScreen';
 import WishlistScreen from '../../../../apps/patient/src/features/medicalStore/screens/WishlistScreen';
+import StoreDetailScreen from '../../../../apps/patient/src/features/medicalStore/screens/StoreDetailScreen';
+import MyOrdersScreen from '../../../../apps/patient/src/features/medicalStore/screens/MyOrdersScreen';
+import OrderTrackingScreen from '../../../../apps/patient/src/features/medicalStore/screens/OrderTrackingScreen';
 
 // Appointment Screens
 import AppointmentsListScreen from '../../../../apps/patient/src/features/patient/screens/AppointmentsListScreen';
 import AppointmentDetailScreen from '../../../../apps/patient/src/features/patient/screens/AppointmentDetailScreen';
 
-// Lab Screens
+// Lab / Diagnostics Screens
+import DiagnosticCentersScreen from '../../../../apps/patient/src/features/diagnostics/screens/DiagnosticCentersScreen';
+import CenterTestsScreen from '../../../../apps/patient/src/features/diagnostics/screens/CenterTestsScreen';
 import LabTestsScreen from '../../../../apps/patient/src/features/diagnostics/screens/LabTestsScreen';
 import LabTestDetailScreen from '../../../../apps/patient/src/features/diagnostics/screens/LabTestDetailScreen';
 import LabBookingScreen from '../../../../apps/patient/src/features/diagnostics/screens/LabBookingScreen';
@@ -74,6 +79,8 @@ function HomeStack() {
       <Stack.Screen name="HomeMain" component={HomeScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="Search" component={SearchScreen} />
+      <Stack.Screen name="DiagnosticCenters" component={DiagnosticCentersScreen} />
+      <Stack.Screen name="CenterTests" component={CenterTestsScreen} />
       <Stack.Screen name="LabTests" component={LabTestsScreen} />
       <Stack.Screen name="LabTestDetail" component={LabTestDetailScreen} />
       <Stack.Screen name="LabBooking" component={LabBookingScreen} />
@@ -113,6 +120,9 @@ function PharmacyStack() {
       <Stack.Screen name="Checkout" component={CheckoutScreen} />
       <Stack.Screen name="OrderSuccess" component={OrderSuccessScreen} />
       <Stack.Screen name="Wishlist" component={WishlistScreen} />
+      <Stack.Screen name="StoreDetail" component={StoreDetailScreen} />
+      <Stack.Screen name="MyOrders" component={MyOrdersScreen} />
+      <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} />
     </Stack.Navigator>
   );
 }
@@ -158,6 +168,7 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
+        tabBarHideOnKeyboard: true,
         tabBarStyle: {
           backgroundColor: isDarkMode ? COLORS.darkCard : COLORS.white,
           borderTopWidth: 0,

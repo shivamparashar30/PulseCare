@@ -7,6 +7,8 @@ import {
   StyleSheet,
   Image,
   ActivityIndicator,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -15,26 +17,20 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { COLORS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../../../../../packages/core/src/constants';
 import { useDoctor } from '../../../../../../packages/core/src/hooks';
-import { DoctorsStackParamList } from '../../../../../../packages/core/src/types';
-import { Button } from '../../../../../../packages/shared/src/components';
+import { DoctorStackParamList } from '../../../../../../packages/core/src/types';
 import { getNextDates } from '../../../../../../packages/core/src/utils';
+import { supabase } from '../../../../../../packages/supabase/src/client';
 
-type Nav = NativeStackNavigationProp<DoctorsStackParamList, 'BookAppointment'>;
-type Route = RouteProp<DoctorsStackParamList, 'BookAppointment'>;
+type Nav = NativeStackNavigationProp<DoctorStackParamList, 'BookAppointment'>;
+type Route = RouteProp<DoctorStackParamList, 'BookAppointment'>;
 
 const VISIT_TYPES = [
-  { id: 'clinic', label: 'Clinic Visit', icon: 'business-outline' },
+  { id: 'in-person', label: 'Clinic Visit', icon: 'business-outline' },
   { id: 'video', label: 'Video Call', icon: 'videocam-outline' },
 ];
 
-const TIME_SLOTS = [
-  '09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM',
-  '11:00 AM', '11:30 AM', '12:00 PM', '02:00 PM',
-  '02:30 PM', '03:00 PM', '03:30 PM', '04:00 PM',
-  '04:30 PM', '05:00 PM', '05:30 PM', '06:00 PM',
-];
-
-const BOOKED_SLOTS = ['10:00 AM', '11:30 AM', '03:00 PM', '05:00 PM']; // mock booked
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 export default function BookAppointmentScreen() {
   const navigation = useNavigation<Nav>();
@@ -45,79 +41,140 @@ export default function BookAppointmentScreen() {
 
   const dates = useMemo(() => getNextDates(7), []);
   const [selectedDate, setSelectedDate] = useState(dates[0]);
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
-  const [visitType, setVisitType] = useState('clinic');
+  const [visitType, setVisitType] = useState('in-person');
+  const [symptoms, setSymptoms] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const handleSubmitRequest = async () => {
+    setSubmitting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        Alert.alert('Error', 'Please login to book an appointment.');
+        return;
+      }
+
+      const { data, error } = await supabase.from('appointments').insert({
+        patient_id: session.user.id,
+        doctor_id: doctorId,
+        date: selectedDate,
+        time: 'To be confirmed',
+        type: visitType,
+        status: 'Pending',
+        symptoms: symptoms || null,
+        payment_amount: doctor?.fees || 0,
+        payment_status: 'pending',
+      }).select().single();
+
+      if (error) throw error;
+
+      navigation.replace('AppointmentSuccess', {
+        doctorId,
+        date: selectedDate,
+        visitType,
+        fee: doctor?.fees || 0,
+        appointmentId: data?.id,
+      });
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to submit appointment request.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (isLoading || !doctor) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background }}>
         <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+    <View style={styles.container}>
+      {/* Header */}
+      <SafeAreaView edges={['top']} style={styles.headerSafe}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Book Appointment</Text>
+          <View style={{ width: 38 }} />
+        </View>
+      </SafeAreaView>
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 110 }}>
         {/* Doctor mini card */}
         <View style={styles.doctorCard}>
           <Image source={{ uri: doctor.avatar }} style={styles.avatar} />
           <View style={{ flex: 1 }}>
             <Text style={styles.docName}>{doctor.name}</Text>
             <Text style={styles.docSpec}>{doctor.specialization}</Text>
-            <Text style={styles.docHosp}>{doctor.hospital}</Text>
+            <View style={styles.docHospRow}>
+              <Ionicons name="business-outline" size={11} color={COLORS.textSecondary} />
+              <Text style={styles.docHosp}>{doctor.hospital || 'Hospital'}</Text>
+            </View>
           </View>
           <View style={styles.feeBadge}>
-            <Text style={styles.feeText}>₹{doctor.fees}</Text>
+            <Text style={styles.feeAmount}>₹{doctor.fees}</Text>
+            <Text style={styles.feeLabel}>Fee</Text>
           </View>
+        </View>
+
+        {/* Info banner */}
+        <View style={styles.infoBanner}>
+          <View style={styles.infoBannerIcon}>
+            <Ionicons name="information-circle" size={16} color={COLORS.primary} />
+          </View>
+          <Text style={styles.infoText}>
+            Select your preferred date and submit a request. The doctor will confirm the date and assign a time slot.
+          </Text>
         </View>
 
         {/* Visit type */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Consultation Type</Text>
           <View style={styles.visitRow}>
-            {VISIT_TYPES.map((v) => (
-              <TouchableOpacity
-                key={v.id}
-                style={[styles.visitCard, visitType === v.id && styles.visitActive]}
-                onPress={() => setVisitType(v.id)}
-              >
-                <Ionicons
-                  name={v.icon as any}
-                  size={22}
-                  color={visitType === v.id ? '#fff' : COLORS.primary}
-                />
-                <Text style={[styles.visitLabel, visitType === v.id && { color: '#fff' }]}>
-                  {v.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {VISIT_TYPES.map((v) => {
+              const active = visitType === v.id;
+              return (
+                <TouchableOpacity
+                  key={v.id}
+                  style={[styles.visitCard, active && styles.visitActive]}
+                  onPress={() => setVisitType(v.id)}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.visitIconWrap, active && { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                    <Ionicons name={v.icon as any} size={20} color={active ? '#fff' : COLORS.primary} />
+                  </View>
+                  <Text style={[styles.visitLabel, active && { color: '#fff' }]}>{v.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
         {/* Date picker */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Select Date</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -SPACING.md }}>
-            <View style={{ flexDirection: 'row', gap: SPACING.sm, paddingHorizontal: SPACING.md }}>
+          <Text style={styles.sectionTitle}>Preferred Date</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -SPACING.base }}>
+            <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: SPACING.base }}>
               {dates.map((dateStr) => {
-                const d = new Date(dateStr);
-                const isActive = selectedDate === dateStr;
+                const d = new Date(dateStr + 'T00:00:00');
+                const active = selectedDate === dateStr;
                 const isToday = dateStr === dates[0];
                 return (
                   <TouchableOpacity
                     key={dateStr}
-                    style={[styles.dateCard, isActive && styles.dateCardActive]}
-                    onPress={() => { setSelectedDate(dateStr); setSelectedSlot(null); }}
+                    style={[styles.dateCard, active && styles.dateCardActive]}
+                    onPress={() => setSelectedDate(dateStr)}
+                    activeOpacity={0.8}
                   >
-                    <Text style={[styles.dateDayName, isActive && { color: 'rgba(255,255,255,0.8)' }]}>
+                    <Text style={[styles.dateDayName, active && { color: 'rgba(255,255,255,0.85)' }]}>
                       {isToday ? 'Today' : DAY_NAMES[d.getDay()]}
                     </Text>
-                    <Text style={[styles.dateNum, isActive && { color: '#fff' }]}>{d.getDate()}</Text>
-                    <Text style={[styles.dateMonth, isActive && { color: 'rgba(255,255,255,0.8)' }]}>
+                    <Text style={[styles.dateNum, active && { color: '#fff' }]}>{d.getDate()}</Text>
+                    <Text style={[styles.dateMonth, active && { color: 'rgba(255,255,255,0.85)' }]}>
                       {MONTH_NAMES[d.getMonth()]}
                     </Text>
                   </TouchableOpacity>
@@ -127,186 +184,248 @@ export default function BookAppointmentScreen() {
           </ScrollView>
         </View>
 
-        {/* Time slots */}
+        {/* Symptoms */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Select Time Slot</Text>
-          <View style={styles.slotsGrid}>
-            {TIME_SLOTS.map((slot) => {
-              const booked = BOOKED_SLOTS.includes(slot);
-              const active = selectedSlot === slot;
-              return (
-                <TouchableOpacity
-                  key={slot}
-                  style={[
-                    styles.slotChip,
-                    booked && styles.slotBooked,
-                    active && styles.slotActive,
-                  ]}
-                  onPress={() => !booked && setSelectedSlot(slot)}
-                  disabled={booked}
-                >
-                  <Text style={[
-                    styles.slotText,
-                    booked && styles.slotTextBooked,
-                    active && { color: '#fff' },
-                  ]}>
-                    {slot}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-          <View style={styles.legend}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: COLORS.surface, borderColor: COLORS.border, borderWidth: 1 }]} />
-              <Text style={styles.legendText}>Available</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: COLORS.primary }]} />
-              <Text style={styles.legendText}>Selected</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: COLORS.border }]} />
-              <Text style={styles.legendText}>Booked</Text>
-            </View>
-          </View>
+          <Text style={styles.sectionTitle}>Symptoms (Optional)</Text>
+          <TextInput
+            style={styles.symptomsInput}
+            value={symptoms}
+            onChangeText={setSymptoms}
+            placeholder="Describe your symptoms briefly..."
+            placeholderTextColor={COLORS.textTertiary}
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+          />
         </View>
 
-        {/* Summary note */}
-        {selectedSlot && (
-          <View style={styles.summaryCard}>
-            <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
-            <Text style={styles.summaryText}>
-              Appointment on {new Date(selectedDate).toDateString()} at {selectedSlot}
-            </Text>
+        {/* Summary */}
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryIconWrap}>
+            <Ionicons name="checkmark" size={14} color="#fff" />
           </View>
-        )}
+          <Text style={styles.summaryText}>
+            Request for {new Date(selectedDate + 'T00:00:00').toDateString()} {' \u2022 '} {visitType === 'video' ? 'Video Call' : 'Clinic Visit'}
+          </Text>
+        </View>
       </ScrollView>
 
       {/* Bottom CTA */}
-      <View style={styles.footer}>
-        <View>
+      <SafeAreaView edges={['bottom']} style={styles.footer}>
+        <View style={styles.footerFee}>
           <Text style={styles.totalLabel}>Consultation Fee</Text>
           <Text style={styles.totalValue}>₹{doctor.fees}</Text>
         </View>
-        <Button
-          title="Proceed to Pay"
-          onPress={() =>
-            navigation.navigate('AppointmentPayment', {
-              doctorId: doctor.id,
-              date: selectedDate,
-              time: selectedSlot!,
-              visitType,
-              fee: doctor.fees,
-            })
-          }
-          disabled={!selectedSlot}
-          size="md"
-        />
-      </View>
-    </SafeAreaView>
+        <TouchableOpacity
+          style={[styles.submitBtn, submitting && { opacity: 0.7 }]}
+          onPress={handleSubmitRequest}
+          disabled={submitting}
+          activeOpacity={0.85}
+        >
+          {submitting ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <>
+              <Ionicons name="calendar-outline" size={18} color="#fff" />
+              <Text style={styles.submitBtnText}>Request Appointment</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </SafeAreaView>
+
+      {submitting && (
+        <View style={styles.overlay}>
+          <View style={styles.overlayCard}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={styles.overlayText}>Submitting request...</Text>
+          </View>
+        </View>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  headerSafe: { backgroundColor: COLORS.card },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.base,
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: COLORS.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: { fontSize: FONT_SIZES.lg, fontWeight: '700', color: COLORS.textPrimary },
   doctorCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    margin: SPACING.md,
-    padding: SPACING.md,
-    backgroundColor: COLORS.surface,
+    margin: SPACING.base,
+    padding: SPACING.base,
+    backgroundColor: COLORS.card,
     borderRadius: BORDER_RADIUS.lg,
-    ...SHADOWS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     gap: SPACING.md,
   },
-  avatar: { width: 60, height: 60, borderRadius: 30 },
-  docName: { fontSize: FONT_SIZES.md, fontWeight: '700', color: COLORS.text },
-  docSpec: { fontSize: FONT_SIZES.xs, color: COLORS.primary, fontWeight: '600' },
+  avatar: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: COLORS.primaryUltraLight },
+  docName: { fontSize: FONT_SIZES.base, fontWeight: '700', color: COLORS.textPrimary },
+  docSpec: { fontSize: FONT_SIZES.sm, color: COLORS.primary, fontWeight: '600', marginTop: 1 },
+  docHospRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
   docHosp: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary },
   feeBadge: {
-    backgroundColor: COLORS.primaryLight,
+    backgroundColor: COLORS.primaryUltraLight,
     borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
     alignItems: 'center',
   },
-  feeText: { fontSize: FONT_SIZES.md, fontWeight: '800', color: COLORS.primary },
-  section: {
-    backgroundColor: COLORS.surface,
-    marginHorizontal: SPACING.md,
-    marginBottom: SPACING.sm,
-    borderRadius: BORDER_RADIUS.lg,
+  feeAmount: { fontSize: FONT_SIZES.base, fontWeight: '800', color: COLORS.primary },
+  feeLabel: { fontSize: 10, color: COLORS.primary, fontWeight: '600', marginTop: 1 },
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    marginHorizontal: SPACING.base,
+    marginBottom: SPACING.md,
+    backgroundColor: COLORS.primaryUltraLight,
+    borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
-    ...SHADOWS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.primaryLight + '30',
   },
-  sectionTitle: { fontSize: FONT_SIZES.md, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.md },
+  infoBannerIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: COLORS.primaryLight + '25',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 1,
+  },
+  infoText: { fontSize: FONT_SIZES.sm, color: COLORS.primaryDark, flex: 1, lineHeight: 18 },
+  section: {
+    backgroundColor: COLORS.card,
+    marginHorizontal: SPACING.base,
+    marginBottom: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.base,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  sectionTitle: { fontSize: FONT_SIZES.md, fontWeight: '700', color: COLORS.textPrimary, marginBottom: SPACING.md },
   visitRow: { flexDirection: 'row', gap: SPACING.md },
   visitCard: {
     flex: 1,
     alignItems: 'center',
-    padding: SPACING.md,
+    paddingVertical: SPACING.base,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1.5,
-    borderColor: COLORS.primary,
-    gap: 6,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.background,
+    gap: SPACING.sm,
   },
-  visitActive: { backgroundColor: COLORS.primary },
-  visitLabel: { fontSize: FONT_SIZES.sm, color: COLORS.primary, fontWeight: '600' },
+  visitActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  visitIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primaryUltraLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  visitLabel: { fontSize: FONT_SIZES.sm, color: COLORS.textPrimary, fontWeight: '600' },
   dateCard: {
     alignItems: 'center',
-    padding: SPACING.sm,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1.5,
     borderColor: COLORS.border,
-    width: 60,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.background,
+    minWidth: 62,
   },
   dateCardActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  dateDayName: { fontSize: 10, color: COLORS.textSecondary, fontWeight: '600' },
-  dateNum: { fontSize: FONT_SIZES.xl, fontWeight: '800', color: COLORS.text },
-  dateMonth: { fontSize: 10, color: COLORS.textSecondary },
-  slotsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  slotChip: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.md,
+  dateDayName: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary, fontWeight: '600' },
+  dateNum: { fontSize: 20, fontWeight: '800', color: COLORS.textPrimary, marginVertical: 2 },
+  dateMonth: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary },
+  symptomsInput: {
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textPrimary,
+    minHeight: 80,
+    backgroundColor: COLORS.background,
   },
-  slotActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  slotBooked: { backgroundColor: COLORS.border, borderColor: COLORS.border },
-  slotText: { fontSize: FONT_SIZES.xs, color: COLORS.text, fontWeight: '600' },
-  slotTextBooked: { color: COLORS.textSecondary },
-  legend: { flexDirection: 'row', gap: SPACING.md, marginTop: SPACING.md },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  legendDot: { width: 10, height: 10, borderRadius: 5 },
-  legendText: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary },
   summaryCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
-    marginHorizontal: SPACING.md,
-    backgroundColor: '#dcfce7',
+    marginHorizontal: SPACING.base,
+    backgroundColor: COLORS.successLight,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
     marginBottom: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.success + '30',
   },
-  summaryText: { fontSize: FONT_SIZES.sm, color: '#166534', fontWeight: '500' },
+  summaryIconWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: COLORS.success,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  summaryText: { fontSize: FONT_SIZES.sm, color: '#166534', fontWeight: '600', flex: 1 },
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: SPACING.md,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.card,
+    paddingHorizontal: SPACING.base,
+    paddingTop: SPACING.md,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
-    ...SHADOWS.lg,
+    gap: SPACING.md,
   },
+  footerFee: { flex: 0 },
   totalLabel: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary },
-  totalValue: { fontSize: FONT_SIZES.xl, fontWeight: '800', color: COLORS.primary },
+  totalValue: { fontSize: 22, fontWeight: '800', color: COLORS.primary },
+  submitBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.md,
+    paddingVertical: 14,
+  },
+  submitBtnText: { color: '#fff', fontSize: FONT_SIZES.base, fontWeight: '700' },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  overlayCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.xl,
+    alignItems: 'center',
+    gap: SPACING.md,
+    margin: SPACING.xl,
+  },
+  overlayText: { fontSize: FONT_SIZES.md, fontWeight: '700', color: COLORS.textPrimary },
 });

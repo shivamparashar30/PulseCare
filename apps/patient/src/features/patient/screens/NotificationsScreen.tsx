@@ -1,98 +1,156 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Switch,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS } from '../../../../../../packages/core/src/constants';
 import { useTheme } from '../../../../../../packages/providers/src/ThemeProvider';
 import { Header, EmptyState } from '../../../../../../packages/shared/src/components';
-import { NOTIFICATIONS } from '../../../../../../packages/core/src/api/mockData';
+import { notificationsApi } from '../../../../../../packages/core/src/api/api';
 import { Notification } from '../../../../../../packages/core/src/types';
+import { timeAgo } from '../../../../../../packages/core/src/utils';
+import { supabase } from '../../../../../../packages/supabase/src/client';
 
-type FilterType = 'all' | 'appointment' | 'medicine' | 'lab' | 'promotion';
+type FilterType = 'all' | 'appointment' | 'order' | 'lab' | 'general';
 
-const NotificationIcon = ({ type, colors }: { type: string; colors: any }) => {
-  const config: Record<string, { icon: string; bg: string; color: string }> = {
-    appointment: { icon: 'calendar', bg: colors.primary + '20', color: colors.primary },
-    medicine: { icon: 'medical', bg: colors.success + '20', color: colors.success },
-    lab: { icon: 'flask', bg: '#FF6B35' + '20', color: '#FF6B35' },
-    promotion: { icon: 'pricetag', bg: '#9B59B6' + '20', color: '#9B59B6' },
-    reminder: { icon: 'alarm', bg: colors.warning + '20', color: colors.warning },
-  };
-  const cfg = config[type] || config.appointment;
-  return (
-    <View style={[styles.iconBox, { backgroundColor: cfg.bg }]}>
-      <Ionicons name={cfg.icon as any} size={20} color={cfg.color} />
-    </View>
-  );
+const ICON_CONFIG: Record<string, { icon: string; bg: string; color: string }> = {
+  appointment: { icon: 'calendar', bg: '#0066CC20', color: '#0066CC' },
+  order: { icon: 'cart', bg: '#05966920', color: '#059669' },
+  lab: { icon: 'flask', bg: '#7C3AED20', color: '#7C3AED' },
+  general: { icon: 'notifications', bg: '#F39C1220', color: '#F39C12' },
 };
 
 export default function NotificationsScreen({ navigation }: any) {
   const { colors } = useTheme();
   const [filter, setFilter] = useState<FilterType>('all');
-  const [notifications, setNotifications] = useState<Notification[]>(NOTIFICATIONS);
-  const [notifSettings, setNotifSettings] = useState({
-    appointments: true,
-    medicines: true,
-    lab: true,
-    promotions: false,
-  });
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
 
-  const filters: { key: FilterType; label: string }[] = [
-    { key: 'all', label: 'All' },
-    { key: 'appointment', label: 'Appointments' },
-    { key: 'medicine', label: 'Medicines' },
-    { key: 'lab', label: 'Lab' },
-    { key: 'promotion', label: 'Promotions' },
-  ];
+  const fetchNotifications = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return;
+    setUserId(session.user.id);
+    const data = await notificationsApi.getByUser(session.user.id, 'patient');
+    setNotifications(data);
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications().finally(() => setLoading(false));
+  }, [fetchNotifications]);
+
+  // Realtime subscription
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel('patient-notifications')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${userId}`,
+      }, (payload: any) => {
+        const row = payload.new;
+        if (row.role && row.role !== 'patient') return;
+        const newNotif: Notification = {
+          id: row.id,
+          title: row.title,
+          message: row.message,
+          type: row.type || 'general',
+          isRead: row.read ?? false,
+          createdAt: row.created_at,
+          actionType: row.action_type,
+          actionId: row.action_id,
+          role: row.role,
+        };
+        setNotifications(prev => [newNotif, ...prev]);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [userId]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchNotifications();
+    setRefreshing(false);
+  };
 
   const filtered = filter === 'all'
     ? notifications
     : notifications.filter(n => n.type === filter);
 
-  const markAllRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+  const markRead = async (id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+    await notificationsApi.markRead(id);
   };
 
-  const markRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+  const markAllRead = async () => {
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    if (userId) await notificationsApi.markAllRead(userId, 'patient');
   };
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
-  const renderNotification = ({ item }: { item: Notification }) => (
-    <TouchableOpacity
-      style={[
-        styles.notifCard,
-        { backgroundColor: colors.card, borderColor: colors.border },
-        !item.isRead && { borderLeftColor: colors.primary, borderLeftWidth: 3 },
-      ]}
-      onPress={() => markRead(item.id)}
-      activeOpacity={0.7}
-    >
-      <NotificationIcon type={item.type} colors={colors} />
-      <View style={styles.notifContent}>
-        <View style={styles.notifHeader}>
-          <Text style={[styles.notifTitle, { color: colors.text }]} numberOfLines={1}>
-            {item.title}
-          </Text>
-          {!item.isRead && <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />}
+  const filters: { key: FilterType; label: string }[] = [
+    { key: 'all', label: 'All' },
+    { key: 'appointment', label: 'Appointments' },
+    { key: 'order', label: 'Orders' },
+    { key: 'lab', label: 'Lab' },
+    { key: 'general', label: 'General' },
+  ];
+
+  const renderNotification = ({ item }: { item: Notification }) => {
+    const cfg = ICON_CONFIG[item.type] || ICON_CONFIG.general;
+    return (
+      <TouchableOpacity
+        style={[
+          styles.notifCard,
+          { backgroundColor: colors.card, borderColor: colors.border },
+          !item.isRead && { borderLeftColor: COLORS.primary, borderLeftWidth: 3 },
+        ]}
+        onPress={() => markRead(item.id)}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.iconBox, { backgroundColor: cfg.bg }]}>
+          <Ionicons name={cfg.icon as any} size={20} color={cfg.color} />
         </View>
-        <Text style={[styles.notifMessage, { color: colors.textSecondary }]} numberOfLines={2}>
-          {item.message}
-        </Text>
-        <Text style={[styles.notifTime, { color: colors.textTertiary }]}>
-          {item.time}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
+        <View style={styles.notifContent}>
+          <View style={styles.notifHeader}>
+            <Text style={[styles.notifTitle, { color: colors.textPrimary }]} numberOfLines={1}>
+              {item.title}
+            </Text>
+            {!item.isRead && <View style={[styles.unreadDot, { backgroundColor: COLORS.primary }]} />}
+          </View>
+          <Text style={[styles.notifMessage, { color: colors.textSecondary }]} numberOfLines={2}>
+            {item.message}
+          </Text>
+          <Text style={[styles.notifTime, { color: colors.textTertiary }]}>
+            {timeAgo(item.createdAt)}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+        <Header title="Notifications" onBack={() => navigation.goBack()} />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
@@ -102,25 +160,21 @@ export default function NotificationsScreen({ navigation }: any) {
         rightComponent={
           unreadCount > 0 ? (
             <TouchableOpacity onPress={markAllRead}>
-              <Text style={[styles.markAllText, { color: colors.primary }]}>Mark all read</Text>
+              <Text style={[styles.markAllText, { color: COLORS.primary }]}>Mark all read</Text>
             </TouchableOpacity>
           ) : undefined
         }
       />
 
       {/* Filter Chips */}
-      <FlatList
-        data={filters}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterList}
-        keyExtractor={i => i.key}
-        renderItem={({ item }) => (
+      <View style={styles.filterRow}>
+        {filters.map(item => (
           <TouchableOpacity
+            key={item.key}
             style={[
               styles.filterChip,
               { borderColor: colors.border, backgroundColor: colors.card },
-              filter === item.key && { backgroundColor: colors.primary, borderColor: colors.primary },
+              filter === item.key && { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
             ]}
             onPress={() => setFilter(item.key)}
           >
@@ -129,8 +183,8 @@ export default function NotificationsScreen({ navigation }: any) {
               {item.label}
             </Text>
           </TouchableOpacity>
-        )}
-      />
+        ))}
+      </View>
 
       {/* Notification List */}
       <FlatList
@@ -139,39 +193,13 @@ export default function NotificationsScreen({ navigation }: any) {
         renderItem={renderNotification}
         contentContainerStyle={styles.list}
         ItemSeparatorComponent={() => <View style={{ height: SPACING.sm }} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
         ListEmptyComponent={
           <EmptyState
             icon="notifications-off-outline"
             title="No Notifications"
             subtitle="You're all caught up! Check back later."
           />
-        }
-        ListFooterComponent={
-          <View style={[styles.settingsSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.settingsTitle, { color: colors.text }]}>Notification Preferences</Text>
-            {[
-              { key: 'appointments', label: 'Appointment Reminders', icon: 'calendar-outline' },
-              { key: 'medicines', label: 'Medicine Reminders', icon: 'medical-outline' },
-              { key: 'lab', label: 'Lab Report Alerts', icon: 'flask-outline' },
-              { key: 'promotions', label: 'Promotions & Offers', icon: 'pricetag-outline' },
-            ].map((s, idx, arr) => (
-              <View key={s.key}>
-                <View style={styles.settingRow}>
-                  <View style={styles.settingLeft}>
-                    <Ionicons name={s.icon as any} size={18} color={colors.primary} />
-                    <Text style={[styles.settingLabel, { color: colors.text }]}>{s.label}</Text>
-                  </View>
-                  <Switch
-                    value={notifSettings[s.key as keyof typeof notifSettings]}
-                    onValueChange={v => setNotifSettings(prev => ({ ...prev, [s.key]: v }))}
-                    trackColor={{ false: colors.border, true: colors.primary + '60' }}
-                    thumbColor={notifSettings[s.key as keyof typeof notifSettings] ? colors.primary : colors.textTertiary}
-                  />
-                </View>
-                {idx < arr.length - 1 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
-              </View>
-            ))}
-          </View>
         }
       />
     </SafeAreaView>
@@ -180,15 +208,20 @@ export default function NotificationsScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  filterList: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, gap: SPACING.sm },
-  filterChip: {
+  filterRow: {
+    flexDirection: 'row',
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
-    borderRadius: BORDER_RADIUS.full,
+    paddingVertical: SPACING.sm,
+    gap: SPACING.sm,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
     borderWidth: 1,
   },
-  filterText: { fontSize: FONT_SIZES.sm, fontWeight: '500' },
-  list: { padding: SPACING.md, gap: SPACING.sm, paddingBottom: SPACING.xl },
+  filterText: { fontSize: 13, fontWeight: '500' },
+  list: { padding: SPACING.md, paddingBottom: SPACING.xl },
   notifCard: {
     flexDirection: 'row',
     padding: SPACING.md,
@@ -211,15 +244,4 @@ const styles = StyleSheet.create({
   notifMessage: { fontSize: FONT_SIZES.sm, lineHeight: 18, marginBottom: 4 },
   notifTime: { fontSize: FONT_SIZES.xs },
   markAllText: { fontSize: FONT_SIZES.sm, fontWeight: '600' },
-  settingsSection: {
-    marginTop: SPACING.lg,
-    borderRadius: BORDER_RADIUS.xl,
-    borderWidth: 1,
-    padding: SPACING.md,
-  },
-  settingsTitle: { fontSize: FONT_SIZES.md, fontWeight: '700', marginBottom: SPACING.md },
-  settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: SPACING.sm },
-  settingLeft: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  settingLabel: { fontSize: FONT_SIZES.sm },
-  divider: { height: 1 },
 });

@@ -20,7 +20,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../../../../../packages/core/src/constants';
 import { useLabTest } from '../../../../../../packages/core/src/hooks';
 import { HomeStackParamList } from '../../../../../../packages/core/src/types';
-import { Button } from '../../../../../../packages/shared/src/components';
 
 type Nav = NativeStackNavigationProp<HomeStackParamList, 'LabTestDetail'>;
 type Route = RouteProp<HomeStackParamList, 'LabTestDetail'>;
@@ -38,9 +37,12 @@ export function LabTestDetailScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
         {/* Hero */}
         <LinearGradient colors={[COLORS.primary, COLORS.primaryDark]} style={styles.hero}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={22} color="#fff" />
+          </TouchableOpacity>
           <View style={styles.heroIcon}>
             <Ionicons name="flask-outline" size={40} color="#fff" />
           </View>
@@ -67,11 +69,32 @@ export function LabTestDetailScreen() {
               <Text style={styles.discount}>{test.discountPercent}% OFF applied</Text>
             )}
           </View>
-          <View style={styles.homeVisitInfo}>
-            <Ionicons name="home-outline" size={16} color={COLORS.success} />
-            <Text style={styles.homeVisitText}>Home collection available</Text>
-          </View>
+          {test.homeCollection ? (
+            <View style={styles.homeVisitInfo}>
+              <Ionicons name="home-outline" size={16} color={COLORS.success} />
+              <Text style={styles.homeVisitText}>Home collection</Text>
+            </View>
+          ) : (
+            <View style={styles.homeVisitInfo}>
+              <Ionicons name="business-outline" size={16} color="#7C3AED" />
+              <Text style={[styles.homeVisitText, { color: '#7C3AED' }]}>Center visit</Text>
+            </View>
+          )}
         </View>
+
+        {/* Center info */}
+        {test.centerName ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Diagnostic Center</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="business-outline" size={16} color="#7C3AED" />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#1E293B' }}>{test.centerName}</Text>
+                {test.centerAddress ? <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>{test.centerAddress}</Text> : null}
+              </View>
+            </View>
+          </View>
+        ) : null}
 
         {/* Preparation */}
         <View style={styles.card}>
@@ -110,11 +133,14 @@ export function LabTestDetailScreen() {
           <Text style={styles.footerLabel}>Price</Text>
           <Text style={styles.footerPrice}>₹{test.price}</Text>
         </View>
-        <Button
-          title="Book Test"
+        <TouchableOpacity
+          style={styles.bookBtn}
           onPress={() => navigation.navigate('LabBooking', { testId: test.id })}
-          size="md"
-        />
+          activeOpacity={0.85}
+        >
+          <Text style={styles.bookBtnText}>Book Test</Text>
+          <Ionicons name="arrow-forward" size={16} color="#fff" />
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -128,8 +154,21 @@ const styles = StyleSheet.create({
   hero: {
     alignItems: 'center',
     padding: SPACING.xl,
+    paddingTop: SPACING.xl + 20,
     paddingBottom: 32,
     gap: SPACING.sm,
+  },
+  backBtn: {
+    position: 'absolute',
+    top: SPACING.md,
+    left: SPACING.md,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
   heroIcon: {
     width: 80,
@@ -147,12 +186,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: BORDER_RADIUS.full,
     paddingHorizontal: SPACING.md,
-    paddingVertical: 4,
+    paddingVertical: 6,
   },
-  heroBadgeText: { fontSize: FONT_SIZES.xs, color: 'rgba(255,255,255,0.9)' },
+  heroBadgeText: { fontSize: FONT_SIZES.xs, color: '#fff', fontWeight: '600' },
   priceCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -164,7 +203,7 @@ const styles = StyleSheet.create({
     ...SHADOWS.md,
     marginTop: -SPACING.lg,
   },
-  priceLabel: { fontSize: FONT_SIZES.xs, color: COLORS.textPrimarySecondary },
+  priceLabel: { fontSize: FONT_SIZES.xs, color: '#64748B' },
   priceValue: { fontSize: FONT_SIZES['2xl'], fontWeight: '900', color: COLORS.primary },
   discount: { fontSize: FONT_SIZES.xs, color: COLORS.success, fontWeight: '600' },
   homeVisitInfo: { flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -186,30 +225,39 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     marginTop: 6,
   },
-  bulletText: { flex: 1, fontSize: FONT_SIZES.sm, color: COLORS.textPrimarySecondary, lineHeight: 20 },
+  bulletText: { flex: 1, fontSize: FONT_SIZES.sm, color: '#64748B', lineHeight: 20 },
   paramGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
   paramChip: {
-    backgroundColor: COLORS.primaryLight,
+    backgroundColor: '#EFF6FF',
     borderRadius: BORDER_RADIUS.sm,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
   },
-  paramText: { fontSize: FONT_SIZES.xs, color: COLORS.primary, fontWeight: '600' },
-  infoText: { fontSize: FONT_SIZES.sm, color: COLORS.textPrimarySecondary, lineHeight: 22 },
+  paramText: { fontSize: FONT_SIZES.xs, color: '#1E40AF', fontWeight: '600' },
+  infoText: { fontSize: FONT_SIZES.sm, color: '#64748B', lineHeight: 22 },
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
     backgroundColor: COLORS.white,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: '#F1F5F9',
     ...SHADOWS.lg,
   },
-  footerLabel: { fontSize: FONT_SIZES.xs, color: COLORS.textPrimarySecondary },
+  footerLabel: { fontSize: FONT_SIZES.xs, color: '#64748B' },
   footerPrice: { fontSize: FONT_SIZES.xl, fontWeight: '800', color: COLORS.primary },
+  bookBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: 14,
+  },
+  bookBtnText: { color: '#fff', fontSize: FONT_SIZES.base, fontWeight: '700' },
 });

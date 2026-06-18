@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,16 +18,15 @@ import { useAuth } from '../../../../../../packages/providers/src/AuthProvider';
 import { useTheme } from '../../../../../../packages/providers/src/ThemeProvider';
 import { COLORS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../../../../../packages/core/src/constants';
 import { Card, SectionHeader, StarRating, PriceDisplay, DiscountBadge, Badge } from '../../../../../../packages/shared/src/components';
-import { getTopDoctors } from '../../doctor/services/doctorData';
-import { getPopularMedicines } from '../../medicalStore/services/medicineData';
-import { MEDICAL_STORES, HEALTH_PACKAGES, BANNERS, LAB_TESTS } from '../../../../../../packages/core/src/api/mockData';
+import { useDoctors, useMedicines, useLabTests, useMedicalStores, useHealthPackages, useUnreadCount } from '../../../../../../packages/core/src/hooks';
+import { BANNERS } from '../../../../../../packages/core/src/api/mockData';
 
 const { width } = Dimensions.get('window');
 const BANNER_WIDTH = width - SPACING.base * 2;
 
 const CATEGORIES = [
   { id: 'c1', name: 'Doctors', icon: 'medkit', color: COLORS.primary, route: 'Doctors' },
-  { id: 'c2', name: 'Lab Tests', icon: 'flask', color: COLORS.accent, route: 'LabTests' },
+  { id: 'c2', name: 'Lab Tests', icon: 'flask', color: COLORS.accent, route: 'DiagnosticCenters' },
   { id: 'c3', name: 'Pharmacy', icon: 'medical', color: '#7B1FA2', route: 'Pharmacy' },
   { id: 'c4', name: 'CT Scan', icon: 'body', color: '#E65100', route: 'LabTests' },
   { id: 'c5', name: 'MRI', icon: 'scan', color: '#1565C0', route: 'LabTests' },
@@ -43,14 +42,25 @@ export default function HomeScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [activeBanner, setActiveBanner] = useState(0);
 
-  const topDoctors = getTopDoctors();
-  const popularMedicines = getPopularMedicines();
-  const popularLabTests = LAB_TESTS.filter((t) => t.isPopular).slice(0, 6);
+  const { data: unreadCount = 0 } = useUnreadCount(user?.id, 'patient');
 
-  const onRefresh = useCallback(() => {
+  const { data: allDoctors = [], refetch: refetchDoctors } = useDoctors();
+  const { data: allMedicines = [], refetch: refetchMeds } = useMedicines();
+  const { data: allLabTests = [], refetch: refetchTests } = useLabTests();
+  const { data: allStores = [], refetch: refetchStores } = useMedicalStores();
+  const { data: allPackages = [], refetch: refetchPkgs } = useHealthPackages();
+
+  const topDoctors = allDoctors.slice(0, 5);
+  const popularMedicines = allMedicines.filter((m: any) => m.discountPercent >= 10).slice(0, 8);
+  const popularLabTests = allLabTests.slice(0, 6);
+  const nearbyStores = allStores.slice(0, 3);
+  const healthPackages = allPackages.slice(0, 4);
+
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1500);
-  }, []);
+    await Promise.all([refetchDoctors(), refetchMeds(), refetchTests(), refetchStores(), refetchPkgs()]);
+    setRefreshing(false);
+  }, [refetchDoctors, refetchMeds, refetchTests, refetchStores, refetchPkgs]);
 
   const navigateToTab = (tabName: string, params?: any) => {
     const parent = navigation.getParent();
@@ -66,6 +76,8 @@ export default function HomeScreen({ navigation }: any) {
       navigateToTab('Doctors');
     } else if (cat.route === 'Pharmacy') {
       navigateToTab('Pharmacy');
+    } else if (cat.route === 'DiagnosticCenters') {
+      navigation.navigate('DiagnosticCenters');
     } else {
       navigation.navigate('LabTests');
     }
@@ -111,7 +123,11 @@ export default function HomeScreen({ navigation }: any) {
                 onPress={() => navigation.navigate('Notifications')}
               >
                 <Ionicons name="notifications-outline" size={22} color={COLORS.white} />
-                <View style={styles.notifBadge} />
+                {unreadCount > 0 && (
+                  <View style={styles.notifBadge}>
+                    <Text style={styles.notifBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -206,7 +222,12 @@ export default function HomeScreen({ navigation }: any) {
               title="Top Doctors"
               onSeeAll={() => navigateToTab('Doctors')}
             />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.horizontalList}
+              contentContainerStyle={styles.horizontalListContent}
+            >
               {topDoctors.map((doctor) => (
                 <TouchableOpacity
                   key={doctor.id}
@@ -241,7 +262,12 @@ export default function HomeScreen({ navigation }: any) {
               title="Popular Lab Tests"
               onSeeAll={() => navigation.navigate('LabTests')}
             />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.horizontalList}
+              contentContainerStyle={styles.horizontalListContent}
+            >
               {popularLabTests.map((test, index) => {
                 const accentColors = [
                   { bg: '#EEF2FF', border: '#C7D2FE', icon: '#6366F1', text: '#4338CA' },
@@ -302,7 +328,12 @@ export default function HomeScreen({ navigation }: any) {
               title="Popular Medicines"
               onSeeAll={() => navigateToTab('Pharmacy')}
             />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.horizontalList}
+              contentContainerStyle={styles.horizontalListContent}
+            >
               {popularMedicines.map((med) => (
                 <TouchableOpacity
                   key={med.id}
@@ -313,7 +344,11 @@ export default function HomeScreen({ navigation }: any) {
                   })}
                 >
                   <View style={[styles.medicineImage, { backgroundColor: colors.background }]}>
-                    <Ionicons name="medical" size={36} color={COLORS.primary} />
+                    {med.image ? (
+                      <Image source={{ uri: med.image }} style={styles.medicineImg} />
+                    ) : (
+                      <Ionicons name="medical" size={36} color={COLORS.primary} />
+                    )}
                     {med.discountPercent > 0 && (
                       <View style={styles.medDiscount}>
                         <Text style={styles.medDiscountText}>{med.discountPercent}%</Text>
@@ -336,12 +371,16 @@ export default function HomeScreen({ navigation }: any) {
               title="Nearby Medical Stores"
               onSeeAll={() => navigation.navigate('MedicalStores')}
             />
-            {MEDICAL_STORES.slice(0, 3).map((store) => (
+            {nearbyStores.map((store: any) => (
               <Card key={store.id} style={styles.storeCard} onPress={() => navigation.navigate('MedicalStores')}>
                 <View style={styles.storeRow}>
-                  <View style={[styles.storeIconContainer, { backgroundColor: COLORS.primaryUltraLight }]}>
-                    <Ionicons name="storefront-outline" size={28} color={COLORS.primary} />
-                  </View>
+                  {store.image ? (
+                    <Image source={{ uri: store.image }} style={styles.storeIconContainer} />
+                  ) : (
+                    <View style={[styles.storeIconContainer, { backgroundColor: COLORS.primaryUltraLight, alignItems: 'center', justifyContent: 'center' }]}>
+                      <Ionicons name="storefront-outline" size={28} color={COLORS.primary} />
+                    </View>
+                  )}
                   <View style={styles.storeInfo}>
                     <View style={styles.storeNameRow}>
                       <Text style={[styles.storeName, { color: colors.textPrimary }]} numberOfLines={1}>{store.name}</Text>
@@ -353,10 +392,14 @@ export default function HomeScreen({ navigation }: any) {
                     </View>
                     <Text style={styles.storeAddress} numberOfLines={1}>{store.address}</Text>
                     <View style={styles.storeMeta}>
-                      <Ionicons name="location-outline" size={13} color={COLORS.textTertiary} />
-                      <Text style={styles.storeMetaText}>{store.distance}</Text>
-                      <Ionicons name="star" size={13} color={COLORS.warning} style={{ marginLeft: 8 }} />
+                      <Ionicons name="star" size={13} color={COLORS.warning} />
                       <Text style={styles.storeMetaText}>{store.rating}</Text>
+                      {store.deliveryAvailable && (
+                        <>
+                          <Ionicons name="bicycle-outline" size={13} color={COLORS.accent} style={{ marginLeft: 8 }} />
+                          <Text style={[styles.storeMetaText, { color: COLORS.accent }]}>Delivery</Text>
+                        </>
+                      )}
                     </View>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
@@ -371,8 +414,13 @@ export default function HomeScreen({ navigation }: any) {
               title="Health Packages"
               onSeeAll={() => navigation.navigate('HealthPackages')}
             />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {HEALTH_PACKAGES.slice(0, 4).map((pkg) => (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.horizontalList}
+              contentContainerStyle={styles.horizontalListContent}
+            >
+              {healthPackages.map((pkg: any) => (
                 <TouchableOpacity
                   key={pkg.id}
                   style={[styles.packageCard, { backgroundColor: colors.card }]}
@@ -432,12 +480,20 @@ const styles = StyleSheet.create({
   },
   notifBadge: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: 4,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: COLORS.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  notifBadgeText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '700',
   },
   searchBar: {
     flexDirection: 'row',
@@ -501,6 +557,8 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   categoryName: { fontSize: 11, fontWeight: '500', textAlign: 'center' },
+  horizontalList: { marginHorizontal: -SPACING.base },
+  horizontalListContent: { paddingHorizontal: SPACING.base, paddingVertical: SPACING.sm },
   doctorCard: { marginRight: SPACING.md, width: 150 },
   doctorCardInner: {
     borderRadius: BORDER_RADIUS.lg,
@@ -607,6 +665,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 8,
     position: 'relative',
+    overflow: 'hidden',
+  },
+  medicineImg: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
   },
   medDiscount: {
     position: 'absolute',

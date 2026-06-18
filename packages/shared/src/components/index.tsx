@@ -476,6 +476,8 @@ export const AvailabilityDot: React.FC<{ isAvailable: boolean }> = ({ isAvailabl
   <View style={[styles.availabilityDot, { backgroundColor: isAvailable ? COLORS.success : COLORS.warning }]} />
 );
 
+export { default as RazorpayWebCheckout } from './RazorpayWebCheckout';
+
 // ============================================
 // STYLES
 // ============================================

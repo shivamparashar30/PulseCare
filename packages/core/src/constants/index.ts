@@ -119,7 +119,7 @@ export const SHADOWS = {
 };
 
 // Razorpay Test Mode Key
-export const RAZORPAY_KEY = 'rzp_test_yourkeyhere';
+export const RAZORPAY_KEY = 'rzp_test_T2JtfeGzvhRvDg';
 
 export const APP_NAME = 'HealthCare+';
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import { COLORS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../../..
 import { ProfileStackParamList } from '../../../../../../packages/core/src/types';
 import { useAuth } from '../../../../../../packages/providers/src/AuthProvider';
 import { useTheme } from '../../../../../../packages/providers/src/ThemeProvider';
+import { supabase } from '../../../../../../packages/supabase/src/client';
 
 type Nav = NativeStackNavigationProp<ProfileStackParamList, 'ProfileMain'>;
 
@@ -55,6 +56,26 @@ export default function ProfileScreen() {
   const navigation = useNavigation<Nav>();
   const { user, logout } = useAuth();
   const { colors, isDarkMode, toggleTheme } = useTheme();
+  const [stats, setStats] = useState({ appointments: 0, labTests: 0, orders: 0 });
+
+  const loadStats = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return;
+    const uid = session.user.id;
+
+    const [appts, labs, ords] = await Promise.all([
+      supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('patient_id', uid),
+      supabase.from('lab_bookings').select('id', { count: 'exact', head: true }).eq('patient_id', uid),
+      supabase.from('orders').select('id', { count: 'exact', head: true }).eq('patient_id', uid),
+    ]);
+    setStats({
+      appointments: appts.count ?? 0,
+      labTests: labs.count ?? 0,
+      orders: ords.count ?? 0,
+    });
+  }, []);
+
+  useEffect(() => { loadStats(); }, [loadStats]);
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
@@ -110,9 +131,9 @@ export default function ProfileScreen() {
         {/* Quick Stats */}
         <View style={[styles.statsCard, { backgroundColor: colors.card }]}>
           {[
-            { label: 'Appointments', value: '3', icon: 'calendar', color: '#7c3aed' },
-            { label: 'Lab Tests', value: '2', icon: 'flask', color: '#0891b2' },
-            { label: 'Orders', value: '5', icon: 'bag-handle', color: '#059669' },
+            { label: 'Appointments', value: String(stats.appointments), icon: 'calendar', color: '#7c3aed' },
+            { label: 'Lab Tests', value: String(stats.labTests), icon: 'flask', color: '#0891b2' },
+            { label: 'Orders', value: String(stats.orders), icon: 'bag-handle', color: '#059669' },
           ].map(({ label, value, icon, color }, index) => (
             <React.Fragment key={label}>
               {index > 0 && <View style={[styles.statDivider, { backgroundColor: colors.border }]} />}
@@ -161,7 +182,11 @@ export default function ProfileScreen() {
                     i < section.items.length - 1 && [styles.menuItemBorder, { borderBottomColor: colors.border }],
                   ]}
                   onPress={() => {
-                    if (item.route) navigation.navigate(item.route as any);
+                    if (item.label === 'My Appointments') {
+                      navigation.getParent()?.navigate('Appointments');
+                    } else if (item.route) {
+                      navigation.navigate(item.route as any);
+                    }
                   }}
                   activeOpacity={0.7}
                 >

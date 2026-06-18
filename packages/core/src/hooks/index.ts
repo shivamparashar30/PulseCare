@@ -20,7 +20,7 @@ export const useDoctors = () =>
   useQuery({ queryKey: ['doctors'], queryFn: doctorsApi.getAll });
 
 export const useDoctor = (id: string) =>
-  useQuery({ queryKey: ['doctor', id], queryFn: () => doctorsApi.getById(id) });
+  useQuery({ queryKey: ['doctor', id], queryFn: async () => (await doctorsApi.getById(id)) ?? null });
 
 export const useDoctorsBySpec = (spec: string) =>
   useQuery({
@@ -61,16 +61,25 @@ export const useMedicineSearch = (query: string) =>
 export const useLabTests = () =>
   useQuery({ queryKey: ['labTests'], queryFn: labApi.getAll });
 
-export const useLabTest = (id: string) =>
-  useQuery({ queryKey: ['labTest', id], queryFn: () => labApi.getById(id) });
+export const useLabTest = (id: string | undefined) =>
+  useQuery({ queryKey: ['labTest', id], queryFn: () => labApi.getById(id!), enabled: !!id });
 
 // ─── Stores ───────────────────────────────────────────────────────────────────
 export const useMedicalStores = () =>
   useQuery({ queryKey: ['stores'], queryFn: storesApi.getAll });
 
+export const useMedicalStore = (id: string) =>
+  useQuery({ queryKey: ['store', id], queryFn: () => storesApi.getById(id), enabled: !!id });
+
+export const useMedicinesByStore = (storeId: string) =>
+  useQuery({ queryKey: ['medicines', 'store', storeId], queryFn: () => medicinesApi.getByStore(storeId), enabled: !!storeId });
+
 // ─── Health Packages ──────────────────────────────────────────────────────────
 export const useHealthPackages = () =>
   useQuery({ queryKey: ['packages'], queryFn: packagesApi.getAll });
+
+export const useHealthPackage = (id: string | undefined) =>
+  useQuery({ queryKey: ['package', id], queryFn: () => packagesApi.getById(id!), enabled: !!id });
 
 // ─── Appointments ─────────────────────────────────────────────────────────────
 export const useAppointments = () =>
@@ -83,5 +92,17 @@ export const useAppointment = (id: string) =>
   });
 
 // ─── Notifications ────────────────────────────────────────────────────────────
-export const useNotifications = () =>
-  useQuery({ queryKey: ['notifications'], queryFn: notificationsApi.getAll });
+export const useNotifications = (userId?: string, role?: string) =>
+  useQuery({
+    queryKey: ['notifications', userId, role],
+    queryFn: () => notificationsApi.getByUser(userId!, role),
+    enabled: !!userId,
+  });
+
+export const useUnreadCount = (userId?: string, role?: string) =>
+  useQuery({
+    queryKey: ['unreadCount', userId, role],
+    queryFn: () => notificationsApi.getUnreadCount(userId!, role),
+    enabled: !!userId,
+    refetchInterval: 30000, // poll every 30s
+  });

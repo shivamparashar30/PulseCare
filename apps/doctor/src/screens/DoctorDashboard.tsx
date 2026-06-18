@@ -1,0 +1,42 @@
+import React from 'react';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { NavigationContainer } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import DoctorHomeTab from './DoctorHomeTab';
+import AppointmentsTab from './AppointmentsTab';
+import ProfileTab from './ProfileTab';
+import NotificationsTab from './NotificationsTab';
+
+const Tab = createBottomTabNavigator();
+
+interface Props {
+  onLogout: () => void;
+  profile: any;
+}
+
+export default function DoctorDashboard({ onLogout, profile }: Props) {
+  return (
+    <NavigationContainer>
+      <Tab.Navigator
+        screenOptions={({ route }) => ({
+          headerShown: false,
+          tabBarStyle: { backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#E5E7EB', height: 60, paddingBottom: 8, paddingTop: 6 },
+          tabBarActiveTintColor: '#2563EB',
+          tabBarInactiveTintColor: '#9CA3AF',
+          tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+          tabBarIcon: ({ color }) => {
+            const icons: Record<string, any> = { Home: 'home-outline', Appointments: 'calendar-outline', Notifications: 'notifications-outline', Profile: 'person-outline' };
+            const activeIcons: Record<string, any> = { Home: 'home', Appointments: 'calendar', Notifications: 'notifications', Profile: 'person' };
+            const focused = color === '#2563EB';
+            return <Ionicons name={focused ? activeIcons[route.name] : icons[route.name]} size={22} color={color} />;
+          },
+        })}
+      >
+        <Tab.Screen name="Home">{() => <DoctorHomeTab profile={profile} />}</Tab.Screen>
+        <Tab.Screen name="Appointments">{() => <AppointmentsTab profile={profile} />}</Tab.Screen>
+        <Tab.Screen name="Notifications">{() => <NotificationsTab profile={profile} />}</Tab.Screen>
+        <Tab.Screen name="Profile">{() => <ProfileTab profile={profile} onLogout={onLogout} />}</Tab.Screen>
+      </Tab.Navigator>
+    </NavigationContainer>
+  );
+}

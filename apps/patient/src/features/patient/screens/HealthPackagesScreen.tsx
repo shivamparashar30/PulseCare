@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   FlatList,
   TouchableOpacity,
   ScrollView,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,7 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS } from '../../../../../../packages/core/src/constants';
 import { useTheme } from '../../../../../../packages/providers/src/ThemeProvider';
 import { Header, Button } from '../../../../../../packages/shared/src/components';
-import { HEALTH_PACKAGES } from '../../../../../../packages/core/src/api/mockData';
+import { useHealthPackages } from '../../../../../../packages/core/src/hooks';
 import { HealthPackage } from '../../../../../../packages/core/src/types';
 import { formatCurrency } from '../../../../../../packages/core/src/utils';
 
@@ -32,10 +33,32 @@ export default function HealthPackagesScreen({ navigation }: any) {
   const { colors } = useTheme();
   const [selectedCat, setSelectedCat] = useState('All');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const { data: packages = [] } = useHealthPackages();
 
-  const filtered = selectedCat === 'All'
-    ? HEALTH_PACKAGES
-    : HEALTH_PACKAGES.filter(p => p.category.toLowerCase() === selectedCat.toLowerCase().replace("'s", '').replace('senior', 'senior'));
+  const filtered = useMemo(() => {
+    let result = packages;
+
+    // Category filter
+    if (selectedCat !== 'All') {
+      result = result.filter((p: any) => p.category.toLowerCase() === selectedCat.toLowerCase().replace("'s", '').replace('senior', 'senior'));
+    }
+
+    // Search filter
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      result = result.filter((p: any) => {
+        const nameMatch = p.name.toLowerCase().includes(q);
+        const categoryMatch = p.category.toLowerCase().includes(q);
+        const centerMatch = (p.centerName || '').toLowerCase().includes(q);
+        const testMatch = (p.tests || []).some((t: string) => t.toLowerCase().includes(q));
+        const descMatch = (p.description || '').toLowerCase().includes(q);
+        return nameMatch || categoryMatch || centerMatch || testMatch || descMatch;
+      });
+    }
+
+    return result;
+  }, [packages, selectedCat, searchQuery]);
 
   const getGradient = (pkg: HealthPackage): [string, string] => {
     const key = pkg.category.toLowerCase().replace("'s", '').split(' ')[0];
@@ -86,15 +109,15 @@ export default function HealthPackagesScreen({ navigation }: any) {
         <View style={styles.features}>
           <View style={styles.featureItem}>
             <Ionicons name="home-outline" size={16} color={colors.primary} />
-            <Text style={[styles.featureText, { color: colors.text }]}>Home Sample Collection</Text>
+            <Text style={[styles.featureText, { color: colors.textPrimary }]}>Home Sample Collection</Text>
           </View>
           <View style={styles.featureItem}>
             <Ionicons name="time-outline" size={16} color={colors.primary} />
-            <Text style={[styles.featureText, { color: colors.text }]}>Report in {item.reportTime}</Text>
+            <Text style={[styles.featureText, { color: colors.textPrimary }]}>Report in {item.reportTime}</Text>
           </View>
           <View style={styles.featureItem}>
             <Ionicons name="person-outline" size={16} color={colors.primary} />
-            <Text style={[styles.featureText, { color: colors.text }]}>Doctor Consultation Included</Text>
+            <Text style={[styles.featureText, { color: colors.textPrimary }]}>Doctor Consultation Included</Text>
           </View>
         </View>
 
@@ -114,7 +137,7 @@ export default function HealthPackagesScreen({ navigation }: any) {
             {item.tests.map((t, i) => (
               <View key={i} style={styles.testRow}>
                 <View style={[styles.testDot, { backgroundColor: c1 }]} />
-                <Text style={[styles.testName, { color: colors.text }]}>{t}</Text>
+                <Text style={[styles.testName, { color: colors.textPrimary }]}>{t}</Text>
               </View>
             ))}
           </View>
@@ -122,11 +145,11 @@ export default function HealthPackagesScreen({ navigation }: any) {
 
         {/* CTA */}
         <View style={[styles.cta, { borderTopColor: colors.border }]}>
-          <View>
-            <Text style={[styles.savingsText, { color: colors.success || '#00A86B' }]}>
+          <View style={{ flex: 1, marginRight: SPACING.sm }}>
+            <Text style={[styles.savingsText, { color: COLORS.success }]} numberOfLines={1}>
               You save {formatCurrency(item.originalPrice - item.price)}
             </Text>
-            <Text style={[styles.freeReport, { color: colors.textSecondary }]}>
+            <Text style={[styles.freeReport, { color: colors.textSecondary }]} numberOfLines={1}>
               Free home collection + e-report
             </Text>
           </View>
@@ -157,6 +180,24 @@ export default function HealthPackagesScreen({ navigation }: any) {
         <Ionicons name="heart-circle" size={48} color="rgba(255,255,255,0.3)" />
       </LinearGradient>
 
+      {/* Search */}
+      <View style={[styles.searchContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
+        <TextInput
+          style={[styles.searchInput, { color: colors.textPrimary }]}
+          placeholder="Search by test, package, or center..."
+          placeholderTextColor={colors.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          returnKeyType="search"
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+        )}
+      </View>
+
       {/* Category Filters */}
       <View style={styles.catsWrapper}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cats}>
@@ -183,6 +224,15 @@ export default function HealthPackagesScreen({ navigation }: any) {
         contentContainerStyle={styles.list}
         ItemSeparatorComponent={() => <View style={{ height: SPACING.md }} />}
         showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Ionicons name="search-outline" size={48} color={colors.textSecondary} />
+            <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No packages found</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              {searchQuery ? `No results for "${searchQuery}"` : 'No packages in this category'}
+            </Text>
+          </View>
+        }
       />
     </SafeAreaView>
   );
@@ -200,6 +250,21 @@ const styles = StyleSheet.create({
   },
   bannerTitle: { color: '#fff', fontSize: FONT_SIZES.lg, fontWeight: '800' },
   bannerSub: { color: 'rgba(255,255,255,0.8)', fontSize: FONT_SIZES.sm, marginTop: 2 },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: SPACING.md,
+    marginBottom: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    height: 44,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    gap: SPACING.sm,
+  },
+  searchInput: { flex: 1, fontSize: FONT_SIZES.sm, paddingVertical: 0 },
+  emptyState: { alignItems: 'center', paddingVertical: SPACING.xl * 2 },
+  emptyTitle: { fontSize: FONT_SIZES.md, fontWeight: '700', marginTop: SPACING.md },
+  emptyText: { fontSize: FONT_SIZES.sm, marginTop: SPACING.xs },
   catsWrapper: { marginBottom: SPACING.sm },
   cats: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, gap: SPACING.sm },
   catChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: BORDER_RADIUS.full, borderWidth: 1 },

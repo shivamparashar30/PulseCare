@@ -1,48 +1,80 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { supabase } from './src/supabase';
+import LoginScreen from './src/screens/LoginScreen';
+import SignupScreen from './src/screens/SignupScreen';
+import PendingScreen from './src/screens/PendingScreen';
+import StoreDashboard from './src/screens/StoreDashboard';
 
-const queryClient = new QueryClient();
-
-function StoreHome() {
-  return (
-    <View style={styles.container}>
-      <View style={styles.iconWrap}>
-        <Ionicons name="storefront" size={64} color="#00A86B" />
-      </View>
-      <Text style={styles.title}>Healthcare Store</Text>
-      <Text style={styles.subtitle}>Medical Store Panel</Text>
-      <Text style={styles.desc}>Manage inventory, process orders, and track deliveries.</Text>
-      <View style={styles.badge}>
-        <Text style={styles.badgeText}>Coming Soon</Text>
-      </View>
-    </View>
-  );
-}
+type AppState = 'loading' | 'login' | 'signup' | 'pending' | 'rejected' | 'home';
 
 export default function App() {
+  const [state, setState] = useState<AppState>('loading');
+  const [profile, setProfile] = useState<any>(null);
+  const signingUp = useRef(false);
+
+  useEffect(() => {
+    checkAuth();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      if (!signingUp.current) checkAuth();
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const checkAuth = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) { setState('login'); setProfile(null); return; }
+
+    const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).eq('role', 'medical_store').single();
+
+    if (!data) { setState('login'); return; }
+    setProfile(data);
+
+    if (data.status === 'approved') setState('home');
+    else if (data.status === 'rejected') setState('rejected');
+    else setState('pending');
+  };
+
+  const handleLogin = async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+
+    const { data: p } = await supabase.from('profiles').select('*').eq('id', data.user.id).eq('role', 'medical_store').single();
+
+    if (!p) {
+      const { data: anyProfile } = await supabase.from('profiles').select('role').eq('id', data.user.id).single();
+      await supabase.auth.signOut();
+      if (anyProfile && anyProfile.role !== 'medical_store') {
+        throw new Error(`This account is registered as "${anyProfile.role}". Please use the correct app to sign in.`);
+      }
+      throw new Error('Your registration is under verification. You will be able to log in once approved.');
+    }
+
+    setProfile(p);
+
+    if (p.status === 'approved') setState('home');
+    else if (p.status === 'rejected') setState('rejected');
+    else setState('pending');
+  };
+
+  const handleLogout = async () => { await supabase.auth.signOut(); setProfile(null); setState('login'); };
+
+  if (state === 'loading') return <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#059669" /></View>;
+
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <QueryClientProvider client={queryClient}>
-          <StatusBar style="dark" />
-          <StoreHome />
-        </QueryClientProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <SafeAreaProvider>
+      <StatusBar style="dark" />
+      {state === 'login' && <LoginScreen onLogin={handleLogin} onGoToSignup={() => { signingUp.current = true; setState('signup'); }} />}
+      {state === 'signup' && <SignupScreen onGoToLogin={() => { signingUp.current = false; setState('login'); }} onSignupComplete={() => { signingUp.current = false; setState('pending'); }} />}
+      {state === 'pending' && <PendingScreen status="pending" onLogout={handleLogout} />}
+      {state === 'rejected' && <PendingScreen status="rejected" rejectionReason={profile?.rejection_reason} onLogout={handleLogout} />}
+      {state === 'home' && <StoreDashboard onLogout={handleLogout} profile={profile} />}
+    </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F7F9FC', padding: 32 },
-  iconWrap: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#E6F7F2', justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
-  title: { fontSize: 28, fontWeight: '800', color: '#1A1F36', marginBottom: 4 },
-  subtitle: { fontSize: 16, color: '#00A86B', fontWeight: '600', marginBottom: 16 },
-  desc: { fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
-  badge: { backgroundColor: '#00A86B', borderRadius: 20, paddingHorizontal: 20, paddingVertical: 10 },
-  badgeText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' },
 });

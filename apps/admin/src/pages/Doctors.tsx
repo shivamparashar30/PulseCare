@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle, XCircle, Eye } from 'lucide-react';
+import { CheckCircle, XCircle, Eye, FileText, ExternalLink } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import DataTable from '../components/DataTable';
 import StatusBadge from '../components/StatusBadge';
@@ -10,6 +10,8 @@ export default function Doctors() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selected, setSelected] = useState<any>(null);
+  const [rejectId, setRejectId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => { load(); }, []);
 
@@ -24,15 +26,20 @@ export default function Doctors() {
     setLoading(false);
   };
 
-  const updateStatus = async (id: string, status: 'approved' | 'rejected') => {
-    await supabase.from('profiles').update({ status }).eq('id', id);
-    setDoctors(prev => prev.map(d => d.id === id ? { ...d, status } : d));
-    if (selected?.id === id) setSelected(null);
+  const updateStatus = async (id: string, status: 'approved' | 'rejected', reason?: string) => {
+    const update: any = { status };
+    if (reason) update.rejection_reason = reason;
+    await supabase.from('profiles').update(update).eq('id', id);
+    setDoctors(prev => prev.map(d => d.id === id ? { ...d, status, rejection_reason: reason } : d));
+    if (selected?.id === id) setSelected({ ...selected, status, rejection_reason: reason });
+    setRejectId(null);
+    setRejectReason('');
   };
 
+  const dp = (d: any) => Array.isArray(d.doctor_profile) ? d.doctor_profile[0] : d.doctor_profile;
+
   const filtered = doctors.filter(d => {
-    const matchSearch = d.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-      d.email?.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = d.full_name?.toLowerCase().includes(search.toLowerCase()) || d.email?.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === 'all' || d.status === statusFilter;
     return matchSearch && matchStatus;
   });
@@ -42,9 +49,13 @@ export default function Doctors() {
       key: 'full_name', label: 'Doctor',
       render: (d: any) => (
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-semibold text-xs">
-            {d.full_name?.charAt(0)?.toUpperCase() || '?'}
-          </div>
+          {dp(d)?.profile_photo_url ? (
+            <img src={dp(d).profile_photo_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-semibold text-xs">
+              {d.full_name?.charAt(0)?.toUpperCase() || '?'}
+            </div>
+          )}
           <div>
             <p className="font-medium text-gray-900">{d.full_name || 'Unnamed'}</p>
             <p className="text-xs text-gray-500">{d.email}</p>
@@ -52,27 +63,33 @@ export default function Doctors() {
         </div>
       ),
     },
-    {
-      key: 'specialization', label: 'Specialization',
-      render: (d: any) => d.doctor_profile?.[0]?.specialization || '-',
-    },
-    {
-      key: 'experience', label: 'Experience',
-      render: (d: any) => d.doctor_profile?.[0]?.experience_years ? `${d.doctor_profile[0].experience_years} yrs` : '-',
-    },
-    {
-      key: 'fee', label: 'Fee',
-      render: (d: any) => d.doctor_profile?.[0]?.consultation_fee ? `₹${d.doctor_profile[0].consultation_fee}` : '-',
-    },
-    {
-      key: 'status', label: 'Status',
-      render: (d: any) => <StatusBadge status={d.status || 'pending'} />,
-    },
-    {
-      key: 'created_at', label: 'Joined',
-      render: (d: any) => new Date(d.created_at).toLocaleDateString(),
-    },
+    { key: 'specialization', label: 'Specialization', render: (d: any) => dp(d)?.specialization || '-' },
+    { key: 'reg_id', label: 'Reg. ID', render: (d: any) => dp(d)?.registration_id || '-' },
+    { key: 'experience', label: 'Exp.', render: (d: any) => dp(d)?.experience_years != null ? `${dp(d).experience_years} yrs` : '-' },
+    { key: 'fee', label: 'Fee', render: (d: any) => dp(d)?.consultation_fee ? `₹${dp(d).consultation_fee}` : '-' },
+    { key: 'status', label: 'Status', render: (d: any) => <StatusBadge status={d.status || 'pending'} /> },
+    { key: 'created_at', label: 'Joined', render: (d: any) => new Date(d.created_at).toLocaleDateString() },
   ];
+
+  const DocCard = ({ url, label }: { url?: string; label: string }) => (
+    url ? (
+      <a href={url} target="_blank" rel="noreferrer" className="block group">
+        <div className="rounded-xl overflow-hidden border border-gray-200 hover:border-indigo-300 transition-colors">
+          <img src={url} alt={label} className="w-full h-32 object-cover bg-gray-100" />
+          <div className="flex items-center justify-between px-3 py-2 bg-white">
+            <span className="text-xs font-medium text-gray-700">{label}</span>
+            <ExternalLink size={12} className="text-indigo-500" />
+          </div>
+        </div>
+      </a>
+    ) : (
+      <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 flex flex-col items-center justify-center h-44">
+        <FileText size={20} className="text-gray-300 mb-1" />
+        <span className="text-xs text-gray-400">{label}</span>
+        <span className="text-[10px] text-gray-300 mt-0.5">Not uploaded</span>
+      </div>
+    )
+  );
 
   return (
     <div className="space-y-6">
@@ -82,18 +99,11 @@ export default function Doctors() {
       </div>
 
       <DataTable
-        columns={columns}
-        data={filtered}
-        loading={loading}
-        searchValue={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Search by name or email..."
+        columns={columns} data={filtered} loading={loading}
+        searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search by name or email..."
         filters={
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-          >
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
             <option value="approved">Approved</option>
@@ -102,19 +112,9 @@ export default function Doctors() {
         }
         actions={(d: any) => (
           <div className="flex items-center gap-1.5 justify-end">
-            <button onClick={() => setSelected(d)} className="p-1.5 text-gray-400 hover:text-indigo-600 rounded" title="View">
-              <Eye size={15} />
-            </button>
-            {d.status !== 'approved' && (
-              <button onClick={() => updateStatus(d.id, 'approved')} className="p-1.5 text-gray-400 hover:text-emerald-600 rounded" title="Approve">
-                <CheckCircle size={15} />
-              </button>
-            )}
-            {d.status !== 'rejected' && (
-              <button onClick={() => updateStatus(d.id, 'rejected')} className="p-1.5 text-gray-400 hover:text-red-600 rounded" title="Reject">
-                <XCircle size={15} />
-              </button>
-            )}
+            <button onClick={() => setSelected(d)} className="p-1.5 text-gray-400 hover:text-indigo-600 rounded"><Eye size={15} /></button>
+            {d.status !== 'approved' && <button onClick={() => updateStatus(d.id, 'approved')} className="p-1.5 text-gray-400 hover:text-emerald-600 rounded" title="Approve"><CheckCircle size={15} /></button>}
+            {d.status !== 'rejected' && <button onClick={() => setRejectId(d.id)} className="p-1.5 text-gray-400 hover:text-red-600 rounded" title="Reject"><XCircle size={15} /></button>}
           </div>
         )}
       />
@@ -122,35 +122,76 @@ export default function Doctors() {
       {/* Detail Modal */}
       {selected && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setSelected(null)}>
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-5 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-900">Doctor Details</h2>
               <StatusBadge status={selected.status || 'pending'} />
             </div>
+
+            {/* Profile Photo */}
+            {dp(selected)?.profile_photo_url && (
+              <div className="flex justify-center">
+                <img src={dp(selected).profile_photo_url} alt="Profile" className="w-24 h-24 rounded-full object-cover ring-4 ring-indigo-50" />
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <div><span className="text-gray-500">Name:</span> <span className="font-medium">{selected.full_name}</span></div>
-              <div><span className="text-gray-500">Email:</span> <span className="font-medium">{selected.email}</span></div>
+              <div><span className="text-gray-500">Name:</span> <span className="font-medium">{selected.full_name || '-'}</span></div>
+              <div><span className="text-gray-500">Email:</span> <span className="font-medium">{selected.email || '-'}</span></div>
               <div><span className="text-gray-500">Phone:</span> <span className="font-medium">{selected.phone || '-'}</span></div>
-              <div><span className="text-gray-500">Specialization:</span> <span className="font-medium">{selected.doctor_profile?.[0]?.specialization || '-'}</span></div>
-              <div><span className="text-gray-500">Experience:</span> <span className="font-medium">{selected.doctor_profile?.[0]?.experience_years || 0} yrs</span></div>
-              <div><span className="text-gray-500">Fee:</span> <span className="font-medium">₹{selected.doctor_profile?.[0]?.consultation_fee || 0}</span></div>
-              <div><span className="text-gray-500">Hospital:</span> <span className="font-medium">{selected.doctor_profile?.[0]?.hospital || '-'}</span></div>
-              <div><span className="text-gray-500">Location:</span> <span className="font-medium">{selected.doctor_profile?.[0]?.location || '-'}</span></div>
+              <div><span className="text-gray-500">Specialization:</span> <span className="font-medium">{dp(selected)?.specialization || '-'}</span></div>
+              <div><span className="text-gray-500">Registration ID:</span> <span className="font-medium">{dp(selected)?.registration_id || '-'}</span></div>
+              <div><span className="text-gray-500">Experience:</span> <span className="font-medium">{dp(selected)?.experience_years != null ? `${dp(selected).experience_years} yrs` : '-'}</span></div>
+              <div><span className="text-gray-500">Hospital/Clinic:</span> <span className="font-medium">{dp(selected)?.hospital || '-'}</span></div>
+              <div><span className="text-gray-500">Consultation Fee:</span> <span className="font-medium">{dp(selected)?.consultation_fee ? `₹${dp(selected).consultation_fee}` : '-'}</span></div>
             </div>
+
+            {/* Verification Documents */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Verification Documents</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <DocCard url={dp(selected)?.government_id_url} label="Government ID" />
+                <DocCard url={dp(selected)?.medical_certificate_url} label="Medical License" />
+                <DocCard url={dp(selected)?.profile_photo_url} label="Profile Photo" />
+              </div>
+            </div>
+
+            {selected.rejection_reason && (
+              <div className="bg-red-50 rounded-lg p-3">
+                <p className="text-xs font-semibold text-red-700">Rejection Reason:</p>
+                <p className="text-sm text-red-600">{selected.rejection_reason}</p>
+              </div>
+            )}
+
             <div className="flex justify-end gap-2 pt-2">
               {selected.status !== 'approved' && (
-                <button onClick={() => updateStatus(selected.id, 'approved')} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700">
-                  Approve
-                </button>
+                <button onClick={() => updateStatus(selected.id, 'approved')} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700">Approve</button>
               )}
               {selected.status !== 'rejected' && (
-                <button onClick={() => updateStatus(selected.id, 'rejected')} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700">
-                  Reject
-                </button>
+                <button onClick={() => { setRejectId(selected.id); }} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700">Reject</button>
               )}
-              <button onClick={() => setSelected(null)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">
-                Close
-              </button>
+              <button onClick={() => setSelected(null)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Reason Modal */}
+      {rejectId && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" onClick={() => setRejectId(null)}>
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-900">Reject Registration</h3>
+            <p className="text-sm text-gray-500">Provide a reason for rejection (visible to the doctor):</p>
+            <textarea
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              placeholder="e.g. Invalid registration ID, unclear document photos..."
+              className="w-full p-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 resize-none"
+              rows={3}
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setRejectId(null)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">Cancel</button>
+              <button onClick={() => updateStatus(rejectId, 'rejected', rejectReason)} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700">Confirm Reject</button>
             </div>
           </div>
         </div>

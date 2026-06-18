@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,133 +7,176 @@ import {
   TouchableOpacity,
   Linking,
   TextInput,
+  Image,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../../../../../../packages/core/src/constants';
+import { useNavigation } from '@react-navigation/native';
+
+import { COLORS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../../../../../packages/core/src/constants';
 import { useTheme } from '../../../../../../packages/providers/src/ThemeProvider';
-import { Header, StarRating, Badge } from '../../../../../../packages/shared/src/components';
-import { MEDICAL_STORES } from '../../../../../../packages/core/src/api/mockData';
-import { MedicalStore } from '../../../../../../packages/core/src/types';
+import { EmptyState } from '../../../../../../packages/shared/src/components';
+import { supabase } from '../../../../../../packages/supabase/src/client';
 
-type SortType = 'distance' | 'rating' | 'name';
-
-export default function MedicalStoresScreen({ navigation }: any) {
+export default function MedicalStoresScreen() {
+  const navigation = useNavigation<any>();
   const { colors } = useTheme();
+  const [stores, setStores] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState('');
-  const [sort, setSort] = useState<SortType>('distance');
   const [showOpen, setShowOpen] = useState(false);
 
-  const filtered = MEDICAL_STORES
-    .filter(s => {
+  const load = useCallback(async () => {
+    const { data } = await supabase
+      .from('medical_stores')
+      .select('*')
+      .order('rating', { ascending: false });
+
+    if (data) {
+      // Fetch medicine counts per store
+      const storeIds = data.map((s: any) => s.id);
+      const { data: counts } = await supabase
+        .from('medicines')
+        .select('store_id')
+        .in('store_id', storeIds)
+        .eq('approval_status', 'approved')
+        .eq('in_stock', true);
+
+      const countMap: Record<string, number> = {};
+      (counts || []).forEach((m: any) => {
+        countMap[m.store_id] = (countMap[m.store_id] || 0) + 1;
+      });
+
+      setStores(data.map((s: any) => ({
+        id: s.id,
+        name: s.store_name,
+        address: s.address || '',
+        phone: s.phone || '',
+        rating: Number(s.rating) || 0,
+        isOpen: s.is_open ?? true,
+        openTime: s.open_time || '08:00 AM',
+        closeTime: s.close_time || '10:00 PM',
+        image: s.store_image || '',
+        deliveryAvailable: s.delivery_available ?? true,
+        deliveryRadiusKm: s.delivery_radius_km ? Number(s.delivery_radius_km) : 5,
+        medicineCount: countMap[s.id] || 0,
+      })));
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
+
+  const filtered = useMemo(() => {
+    let list = stores;
+    if (query.trim()) {
       const q = query.toLowerCase();
-      const matchQuery = s.name.toLowerCase().includes(q) || s.address.toLowerCase().includes(q);
-      const matchOpen = !showOpen || s.isOpen;
-      return matchQuery && matchOpen;
-    })
-    .sort((a, b) => {
-      if (sort === 'distance') return parseFloat(a.distance) - parseFloat(b.distance);
-      if (sort === 'rating') return b.rating - a.rating;
-      return a.name.localeCompare(b.name);
-    });
+      list = list.filter(s => s.name.toLowerCase().includes(q) || s.address.toLowerCase().includes(q));
+    }
+    if (showOpen) list = list.filter(s => s.isOpen);
+    return list;
+  }, [stores, query, showOpen]);
 
-  const callStore = (phone: string) => {
-    Linking.openURL(`tel:${phone}`);
-  };
-
-  const renderStore = ({ item }: { item: MedicalStore }) => (
-    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      {/* Header Row */}
-      <View style={styles.cardHeader}>
-        <View style={[styles.storeIcon, { backgroundColor: colors.primary + '15' }]}>
-          <Ionicons name="storefront" size={26} color={colors.primary} />
-        </View>
-        <View style={styles.storeInfo}>
-          <Text style={[styles.storeName, { color: colors.text }]}>{item.name}</Text>
-          <Text style={[styles.storeAddress, { color: colors.textSecondary }]} numberOfLines={1}>
-            {item.address}
-          </Text>
-          <View style={styles.metaRow}>
-            <StarRating rating={item.rating} size={12} showCount count={item.reviewCount} />
-            <View style={styles.dot} />
-            <Ionicons name="location-outline" size={12} color={colors.textSecondary} />
-            <Text style={[styles.distance, { color: colors.textSecondary }]}>{item.distance}</Text>
-          </View>
-        </View>
-        <Badge
-          text={item.isOpen ? 'Open' : 'Closed'}
-          color={item.isOpen ? '#00A86B' : '#EF4444'}
-          size="sm"
-        />
-      </View>
-
-      {/* Services */}
-      {item.services && (
-        <View style={styles.servicesRow}>
-          {item.services.slice(0, 3).map(svc => (
-            <View key={svc} style={[styles.servicePill, { backgroundColor: colors.primary + '10' }]}>
-              <Text style={[styles.serviceText, { color: colors.primary }]}>{svc}</Text>
-            </View>
-          ))}
-          {item.services.length > 3 && (
-            <Text style={[styles.moreServices, { color: colors.textSecondary }]}>+{item.services.length - 3} more</Text>
-          )}
+  const renderStore = ({ item }: any) => (
+    <TouchableOpacity
+      style={[styles.card, { backgroundColor: colors.card }]}
+      activeOpacity={0.9}
+      onPress={() => {
+        const parent = navigation.getParent();
+        if (parent) parent.navigate('Pharmacy', { screen: 'StoreDetail', params: { storeId: item.id } });
+        else navigation.navigate('StoreDetail', { storeId: item.id });
+      }}
+    >
+      {/* Store Image */}
+      {item.image ? (
+        <Image source={{ uri: item.image }} style={styles.storeImage} />
+      ) : (
+        <View style={[styles.storeImage, { backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center' }]}>
+          <Ionicons name="storefront" size={40} color={COLORS.primary} />
         </View>
       )}
 
-      {/* Timing & Delivery */}
-      <View style={[styles.infoRow, { borderTopColor: colors.border }]}>
-        <View style={styles.infoItem}>
-          <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
-          <Text style={[styles.infoText, { color: colors.textSecondary }]}>{item.timing}</Text>
-        </View>
-        {item.homeDelivery && (
-          <View style={styles.infoItem}>
-            <Ionicons name="bicycle-outline" size={14} color={colors.success || '#00A86B'} />
-            <Text style={[styles.infoText, { color: colors.success || '#00A86B' }]}>Home Delivery</Text>
+      <View style={styles.cardBody}>
+        <View style={styles.nameRow}>
+          <Text style={[styles.storeName, { color: colors.textPrimary }]} numberOfLines={1}>{item.name}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: item.isOpen ? '#D1FAE5' : '#FEE2E2' }]}>
+            <View style={[styles.statusDot, { backgroundColor: item.isOpen ? '#10B981' : '#EF4444' }]} />
+            <Text style={{ fontSize: 10, fontWeight: '700', color: item.isOpen ? '#047857' : '#B91C1C' }}>
+              {item.isOpen ? 'Open' : 'Closed'}
+            </Text>
           </View>
-        )}
-      </View>
+        </View>
 
-      {/* Actions */}
-      <View style={styles.actions}>
-        <TouchableOpacity
-          style={[styles.callBtn, { borderColor: colors.primary }]}
-          onPress={() => callStore(item.phone)}
-        >
-          <Ionicons name="call" size={16} color={colors.primary} />
-          <Text style={[styles.callText, { color: colors.primary }]}>Call</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.dirBtn, { borderColor: colors.border }]}
-        >
-          <Ionicons name="navigate" size={16} color={colors.textSecondary} />
-          <Text style={[styles.dirText, { color: colors.textSecondary }]}>Directions</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.orderBtn, { backgroundColor: colors.primary }]}
-          onPress={() => {
-            const parent = navigation.getParent();
-            if (parent) parent.navigate('Pharmacy');
-            else navigation.navigate('Pharmacy');
-          }}
-        >
-          <Text style={styles.orderText}>Order Online</Text>
-        </TouchableOpacity>
+        <Text style={[styles.storeAddress, { color: colors.textSecondary }]} numberOfLines={2}>{item.address}</Text>
+
+        <View style={styles.metaRow}>
+          <View style={styles.metaChip}>
+            <Ionicons name="star" size={12} color="#F59E0B" />
+            <Text style={styles.metaText}>{item.rating.toFixed(1)}</Text>
+          </View>
+          <View style={styles.metaChip}>
+            <Ionicons name="time-outline" size={12} color={colors.textTertiary} />
+            <Text style={[styles.metaText, { color: colors.textTertiary }]}>{item.openTime} - {item.closeTime}</Text>
+          </View>
+          {item.deliveryAvailable && (
+            <View style={[styles.metaChip, { backgroundColor: '#ECFDF5' }]}>
+              <Ionicons name="bicycle-outline" size={12} color="#059669" />
+              <Text style={{ fontSize: 10, fontWeight: '600', color: '#059669' }}>Delivery</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.bottomRow}>
+          <Text style={[styles.medCount, { color: colors.textTertiary }]}>
+            {item.medicineCount} medicines available
+          </Text>
+          <View style={styles.actionBtns}>
+            <TouchableOpacity
+              style={[styles.callBtn, { borderColor: COLORS.primary }]}
+              onPress={() => Linking.openURL(`tel:${item.phone}`)}
+            >
+              <Ionicons name="call" size={14} color={COLORS.primary} />
+            </TouchableOpacity>
+            <View style={styles.viewBtn}>
+              <Text style={styles.viewBtnText}>View Store</Text>
+              <Ionicons name="arrow-forward" size={12} color="#fff" />
+            </View>
+          </View>
+        </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <Header title="Nearby Medical Stores" onBack={() => navigation.goBack()} />
+      {/* Header */}
+      <View style={[styles.header, { backgroundColor: colors.card }]}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Medical Stores</Text>
+        <View style={{ width: 36 }} />
+      </View>
 
       {/* Search */}
-      <View style={styles.searchContainer}>
-        <View style={[styles.searchBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Ionicons name="search" size={18} color={colors.textSecondary} />
+      <View style={styles.searchRow}>
+        <View style={[styles.searchBox, { backgroundColor: colors.card }]}>
+          <Ionicons name="search" size={18} color={colors.textTertiary} />
           <TextInput
-            style={[styles.searchInput, { color: colors.text }]}
+            style={[styles.searchInput, { color: colors.textPrimary }]}
             placeholder="Search stores..."
             placeholderTextColor={colors.textTertiary}
             value={query}
@@ -141,59 +184,31 @@ export default function MedicalStoresScreen({ navigation }: any) {
           />
           {query.length > 0 && (
             <TouchableOpacity onPress={() => setQuery('')}>
-              <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
+              <Ionicons name="close-circle" size={18} color={colors.textTertiary} />
             </TouchableOpacity>
           )}
         </View>
-      </View>
-
-      {/* Filters */}
-      <View style={styles.filtersRow}>
         <TouchableOpacity
-          style={[styles.filterPill,
-            { borderColor: showOpen ? colors.success : colors.border },
-            showOpen && { backgroundColor: (colors.success || '#00A86B') + '15' }
-          ]}
+          style={[styles.filterChip, showOpen && { backgroundColor: '#D1FAE5', borderColor: '#10B981' }]}
           onPress={() => setShowOpen(!showOpen)}
         >
-          <View style={[styles.statusDot, { backgroundColor: showOpen ? colors.success : colors.border }]} />
-          <Text style={[styles.filterPillText,
-            { color: showOpen ? (colors.success || '#00A86B') : colors.textSecondary }]}>
-            Open Now
-          </Text>
+          <Text style={[styles.filterText, showOpen && { color: '#047857' }]}>Open Now</Text>
         </TouchableOpacity>
-
-        <View style={styles.sortRow}>
-          <Text style={[styles.sortLabel, { color: colors.textSecondary }]}>Sort:</Text>
-          {(['distance', 'rating', 'name'] as SortType[]).map(s => (
-            <TouchableOpacity
-              key={s}
-              style={[styles.sortChip,
-                { borderColor: sort === s ? colors.primary : colors.border },
-                sort === s && { backgroundColor: colors.primary + '15' }
-              ]}
-              onPress={() => setSort(s)}
-            >
-              <Text style={[styles.sortChipText,
-                { color: sort === s ? colors.primary : colors.textSecondary }]}>
-                {s.charAt(0).toUpperCase() + s.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
       </View>
 
-      {/* Count */}
       <Text style={[styles.count, { color: colors.textSecondary }]}>
-        {filtered.length} stores found near you
+        {filtered.length} store{filtered.length !== 1 ? 's' : ''} found
       </Text>
 
       <FlatList
         data={filtered}
-        keyExtractor={i => i.id}
+        keyExtractor={(item) => item.id}
         renderItem={renderStore}
         contentContainerStyle={styles.list}
-        ItemSeparatorComponent={() => <View style={{ height: SPACING.md }} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
+        ListEmptyComponent={
+          <EmptyState icon="storefront-outline" title="No stores found" subtitle="Try changing your search or filters" />
+        }
         showsVerticalScrollIndicator={false}
       />
     </SafeAreaView>
@@ -202,48 +217,56 @@ export default function MedicalStoresScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  searchContainer: { paddingHorizontal: SPACING.md, paddingTop: SPACING.sm },
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    gap: SPACING.sm,
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: SPACING.md, paddingVertical: SPACING.md,
   },
-  searchInput: { flex: 1, fontSize: FONT_SIZES.md },
-  filtersRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, gap: SPACING.sm, flexWrap: 'wrap' },
-  filterPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: SPACING.md, paddingVertical: 6, borderRadius: BORDER_RADIUS.full, borderWidth: 1 },
-  statusDot: { width: 7, height: 7, borderRadius: 4 },
-  filterPillText: { fontSize: FONT_SIZES.sm, fontWeight: '500' },
-  sortRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  sortLabel: { fontSize: FONT_SIZES.sm },
-  sortChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: BORDER_RADIUS.full, borderWidth: 1 },
-  sortChipText: { fontSize: FONT_SIZES.xs, fontWeight: '500' },
-  count: { fontSize: FONT_SIZES.sm, paddingHorizontal: SPACING.md, marginBottom: SPACING.sm },
-  list: { paddingHorizontal: SPACING.md, paddingBottom: SPACING.xl },
-  card: { borderRadius: BORDER_RADIUS.xl, borderWidth: 1, overflow: 'hidden' },
-  cardHeader: { flexDirection: 'row', padding: SPACING.md, gap: SPACING.md, alignItems: 'flex-start' },
-  storeIcon: { width: 50, height: 50, borderRadius: BORDER_RADIUS.md, alignItems: 'center', justifyContent: 'center' },
-  storeInfo: { flex: 1 },
-  storeName: { fontSize: FONT_SIZES.md, fontWeight: '700', marginBottom: 2 },
-  storeAddress: { fontSize: FONT_SIZES.sm, marginBottom: 4 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#ccc' },
-  distance: { fontSize: FONT_SIZES.xs },
-  servicesRow: { flexDirection: 'row', paddingHorizontal: SPACING.md, paddingBottom: SPACING.sm, flexWrap: 'wrap', gap: SPACING.sm },
-  servicePill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: BORDER_RADIUS.sm },
-  serviceText: { fontSize: FONT_SIZES.xs, fontWeight: '500' },
-  moreServices: { fontSize: FONT_SIZES.xs, alignSelf: 'center' },
-  infoRow: { flexDirection: 'row', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderTopWidth: 1, gap: SPACING.lg },
-  infoItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  infoText: { fontSize: FONT_SIZES.xs },
-  actions: { flexDirection: 'row', padding: SPACING.md, gap: SPACING.sm, borderTopWidth: 0 },
-  callBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: BORDER_RADIUS.lg, borderWidth: 1.5 },
-  callText: { fontSize: FONT_SIZES.sm, fontWeight: '600' },
-  dirBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: BORDER_RADIUS.lg, borderWidth: 1 },
-  dirText: { fontSize: FONT_SIZES.sm, fontWeight: '500' },
-  orderBtn: { flex: 1, alignItems: 'center', paddingVertical: SPACING.sm, borderRadius: BORDER_RADIUS.lg },
-  orderText: { color: '#fff', fontSize: FONT_SIZES.sm, fontWeight: '700' },
+  backBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: FONT_SIZES.lg, fontWeight: '700' },
+  searchRow: {
+    flexDirection: 'row', paddingHorizontal: SPACING.base, paddingBottom: SPACING.sm, gap: SPACING.sm,
+  },
+  searchBox: {
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    borderRadius: BORDER_RADIUS.lg, paddingHorizontal: SPACING.md, paddingVertical: SPACING.md,
+    gap: SPACING.sm, ...SHADOWS.sm,
+  },
+  searchInput: { flex: 1, fontSize: FONT_SIZES.sm },
+  filterChip: {
+    paddingHorizontal: SPACING.md, justifyContent: 'center',
+    borderRadius: BORDER_RADIUS.lg, borderWidth: 1, borderColor: '#E2E8F0',
+  },
+  filterText: { fontSize: FONT_SIZES.xs, fontWeight: '600', color: '#64748B' },
+  count: { fontSize: FONT_SIZES.xs, fontWeight: '500', paddingHorizontal: SPACING.base, marginBottom: SPACING.sm },
+  list: { paddingHorizontal: SPACING.base, gap: SPACING.md, paddingBottom: 30 },
+  card: { borderRadius: BORDER_RADIUS.lg, overflow: 'hidden', ...SHADOWS.sm },
+  storeImage: { width: '100%', height: 140 },
+  cardBody: { padding: SPACING.md },
+  nameRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  storeName: { fontSize: FONT_SIZES.md, fontWeight: '700', flex: 1 },
+  statusBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: BORDER_RADIUS.full, marginLeft: SPACING.sm,
+  },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  storeAddress: { fontSize: FONT_SIZES.xs, lineHeight: 18, marginBottom: SPACING.sm },
+  metaRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.sm, flexWrap: 'wrap' },
+  metaChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: BORDER_RADIUS.full, backgroundColor: '#F8FAFC',
+  },
+  metaText: { fontSize: 10, fontWeight: '600', color: '#1E293B' },
+  bottomRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  medCount: { fontSize: FONT_SIZES.xs, fontWeight: '500' },
+  actionBtns: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  callBtn: {
+    width: 32, height: 32, borderRadius: 16, borderWidth: 1.5,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  viewBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: COLORS.primary, borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.md, paddingVertical: 8,
+  },
+  viewBtnText: { color: '#fff', fontSize: FONT_SIZES.xs, fontWeight: '700' },
 });

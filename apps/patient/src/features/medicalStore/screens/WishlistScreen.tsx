@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   card: {
     flexDirection: 'row',
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.white,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md,
     ...SHADOWS.sm,
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
   },
   image: { width: 70, height: 70, borderRadius: BORDER_RADIUS.md },
   info: { flex: 1 },
-  name: { fontSize: FONT_SIZES.sm, fontWeight: '700', color: COLORS.text },
+  name: { fontSize: FONT_SIZES.sm, fontWeight: '700', color: COLORS.textPrimary },
   company: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary },
   pack: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary, marginBottom: 2 },
   actions: { gap: SPACING.sm, alignItems: 'center' },

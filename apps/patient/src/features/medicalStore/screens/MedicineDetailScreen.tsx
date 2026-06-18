@@ -14,6 +14,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { COLORS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../../../../../packages/core/src/constants';
+import { useTheme } from '../../../../../../packages/providers/src/ThemeProvider';
 import { useMedicine } from '../../../../../../packages/core/src/hooks';
 import { PharmacyStackParamList } from '../../../../../../packages/core/src/types';
 import { useCart } from '../context/CartContext';
@@ -27,6 +28,7 @@ export default function MedicineDetailScreen() {
   const route = useRoute<Route>();
   const { medicineId } = route.params;
 
+  const { colors } = useTheme();
   const { data: medicine, isLoading } = useMedicine(medicineId);
   const { addToCart, removeFromCart, isInCart, items } = useCart();
   const [activeTab, setActiveTab] = useState<'uses' | 'side' | 'how'>('uses');
@@ -51,10 +53,18 @@ export default function MedicineDetailScreen() {
   const cartItem = items.find((i) => i.medicine.id === medicine.id);
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+      {/* Header */}
+      <View style={[styles.detailHeader, { backgroundColor: colors.card }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackBtn}>
+          <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <Text style={[styles.headerText, { color: colors.textPrimary }]} numberOfLines={1}>Medicine Details</Text>
+        <View style={{ width: 36 }} />
+      </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         {/* Image section */}
-        <View style={styles.imageSection}>
+        <View style={[styles.imageSection, { backgroundColor: colors.card }]}>
           {medicine.discountPercent > 0 && (
             <View style={styles.discountLabel}>
               <Text style={styles.discountText}>{medicine.discountPercent}% OFF</Text>
@@ -62,7 +72,7 @@ export default function MedicineDetailScreen() {
           )}
           <Image
             source={{
-              uri: `https://via.placeholder.com/200x200/${medicine.category === 'Tablet' ? '0066CC' : '00A86B'}/ffffff?text=${medicine.name.slice(0, 3)}`,
+              uri: medicine.image || `https://via.placeholder.com/200x200/0066CC/ffffff?text=${medicine.name.slice(0, 3)}`,
             }}
             style={styles.image}
             resizeMode="cover"
@@ -77,8 +87,14 @@ export default function MedicineDetailScreen() {
 
         {/* Info */}
         <View style={styles.infoSection}>
-          <Text style={styles.name}>{medicine.name}</Text>
-          <Text style={styles.company}>{medicine.company}</Text>
+          <Text style={[styles.name, { color: colors.textPrimary }]}>{medicine.name}</Text>
+          <Text style={[styles.company, { color: colors.textSecondary }]}>{medicine.company}</Text>
+          {medicine.storeName && (
+            <View style={styles.storeRow}>
+              <Ionicons name="storefront-outline" size={12} color={COLORS.accent} />
+              <Text style={styles.storeLabel}>{medicine.storeName}</Text>
+            </View>
+          )}
           <View style={styles.metaRow}>
             <View style={styles.metaChip}>
               <Text style={styles.metaText}>{medicine.category}</Text>
@@ -113,8 +129,8 @@ export default function MedicineDetailScreen() {
         </View>
 
         {/* Description */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>About</Text>
+        <View style={[styles.card, { backgroundColor: colors.card }]}>
+          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>About</Text>
           <Text style={styles.description}>{medicine.description}</Text>
         </View>
 
@@ -135,7 +151,7 @@ export default function MedicineDetailScreen() {
           )}
         </View>
 
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: colors.card }]}>
           {activeTab === 'uses' &&
             medicine.uses.map((u, i) => (
               <View key={i} style={styles.bulletRow}>
@@ -162,9 +178,9 @@ export default function MedicineDetailScreen() {
       </ScrollView>
 
       {/* Bottom action */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
         <View>
-          <Text style={styles.footerLabel}>Price</Text>
+          <Text style={[styles.footerLabel, { color: colors.textSecondary }]}>Price</Text>
           <Text style={styles.footerPrice}>₹{medicine.discountedPrice}</Text>
         </View>
         {inCart ? (
@@ -194,9 +210,11 @@ export default function MedicineDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1 },
+  detailHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.md, paddingVertical: SPACING.md },
+  headerBackBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  headerText: { fontSize: FONT_SIZES.lg, fontWeight: '700' },
   imageSection: {
-    backgroundColor: COLORS.surface,
     alignItems: 'center',
     padding: SPACING.xl,
     position: 'relative',
@@ -224,11 +242,13 @@ const styles = StyleSheet.create({
   },
   rxText: { fontSize: FONT_SIZES.xs, color: '#854d0e', fontWeight: '600' },
   infoSection: { padding: SPACING.md },
-  name: { fontSize: FONT_SIZES.xl, fontWeight: '800', color: COLORS.text },
-  company: { fontSize: FONT_SIZES.sm, color: COLORS.textSecondary, marginBottom: SPACING.sm },
+  name: { fontSize: FONT_SIZES.xl, fontWeight: '800' },
+  company: { fontSize: FONT_SIZES.sm, marginBottom: 2 },
+  storeRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: SPACING.sm },
+  storeLabel: { fontSize: FONT_SIZES.xs, color: COLORS.accent, fontWeight: '600' },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.xs, marginBottom: SPACING.sm },
   metaChip: {
-    backgroundColor: COLORS.primaryLight,
+    backgroundColor: COLORS.primaryUltraLight,
     borderRadius: BORDER_RADIUS.sm,
     paddingHorizontal: SPACING.sm,
     paddingVertical: 2,
@@ -238,14 +258,13 @@ const styles = StyleSheet.create({
   stockDot: { width: 8, height: 8, borderRadius: 4 },
   stockText: { fontSize: FONT_SIZES.sm, fontWeight: '600' },
   card: {
-    backgroundColor: COLORS.surface,
     marginHorizontal: SPACING.md,
     marginBottom: SPACING.sm,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md,
     ...SHADOWS.sm,
   },
-  cardTitle: { fontSize: FONT_SIZES.md, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.sm },
+  cardTitle: { fontSize: FONT_SIZES.md, fontWeight: '700', marginBottom: SPACING.sm },
   description: { fontSize: FONT_SIZES.sm, color: COLORS.textSecondary, lineHeight: 22 },
   tabs: { flexDirection: 'row', marginHorizontal: SPACING.md, marginBottom: SPACING.xs },
   tab: {
@@ -276,12 +295,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: SPACING.md,
-    backgroundColor: COLORS.surface,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
     ...SHADOWS.lg,
   },
-  footerLabel: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary },
+  footerLabel: { fontSize: FONT_SIZES.xs },
   footerPrice: { fontSize: FONT_SIZES.xl, fontWeight: '800', color: COLORS.primary },
   qtyRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
   qtyBtn: {
@@ -293,5 +310,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  qtyCount: { fontSize: FONT_SIZES.lg, fontWeight: '800', color: COLORS.text, minWidth: 24, textAlign: 'center' },
+  qtyCount: { fontSize: FONT_SIZES.lg, fontWeight: '800', minWidth: 24, textAlign: 'center' },
 });

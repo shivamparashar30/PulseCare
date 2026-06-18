@@ -23,15 +23,16 @@ import { EmptyState } from '../../../../../../packages/shared/src/components';
 
 type Nav = NativeStackNavigationProp<HomeStackParamList, 'LabTests'>;
 
-const CATEGORIES = ['All', 'Blood Tests', 'Diabetes', 'Thyroid', 'Vitamins', 'Urine Tests', 'Imaging', 'Cardiac'];
+const CATEGORIES = ['All', 'Hematology', 'Diabetes', 'Endocrinology', 'Biochemistry', 'Vitamins', 'Pathology', 'Imaging', 'Cardiac'];
 
 const CAT_ICONS: Record<string, string> = {
   'All': 'apps-outline',
-  'Blood Tests': 'water-outline',
+  'Hematology': 'water-outline',
   'Diabetes': 'fitness-outline',
-  'Thyroid': 'body-outline',
+  'Endocrinology': 'body-outline',
+  'Biochemistry': 'flask-outline',
   'Vitamins': 'sunny-outline',
-  'Urine Tests': 'flask-outline',
+  'Pathology': 'flask-outline',
   'Imaging': 'scan-outline',
   'Cardiac': 'heart-outline',
 };
@@ -57,7 +58,7 @@ export default function LabTestsScreen() {
 
   const renderTest = ({ item }: any) => {
     const hasDiscount = item.discountPercent > 0;
-    const originalPrice = hasDiscount ? Math.round(item.price / (1 - item.discountPercent / 100)) : item.price;
+    const originalPrice = item.originalPrice || (hasDiscount ? Math.round(item.price / (1 - item.discountPercent / 100)) : item.price);
 
     return (
       <TouchableOpacity
@@ -84,6 +85,20 @@ export default function LabTestsScreen() {
 
         <Text style={[styles.testDesc, { color: colors.textSecondary }]} numberOfLines={2}>{item.description}</Text>
 
+        {/* Center name */}
+        {item.centerName ? (
+          <View style={styles.centerRow}>
+            <Ionicons name="business-outline" size={12} color="#7C3AED" />
+            <Text style={styles.centerLabel} numberOfLines={1}>{item.centerName}</Text>
+            {item.homeCollection && (
+              <View style={styles.homeBadge}>
+                <Ionicons name="home-outline" size={10} color="#059669" />
+                <Text style={styles.homeBadgeText}>Home</Text>
+              </View>
+            )}
+          </View>
+        ) : null}
+
         <View style={[styles.testDivider, { backgroundColor: colors.border }]} />
 
         <View style={styles.testCardBottom}>
@@ -109,7 +124,7 @@ export default function LabTestsScreen() {
             <TouchableOpacity
               style={styles.bookBtn}
               activeOpacity={0.85}
-              onPress={() => navigation.navigate('LabTestDetail', { testId: item.id })}
+              onPress={() => navigation.navigate('LabBooking', { testId: item.id })}
             >
               <Text style={styles.bookBtnText}>Book Now</Text>
               <Ionicons name="arrow-forward" size={14} color="#fff" />
@@ -180,6 +195,24 @@ export default function LabTestsScreen() {
           ))}
         </ScrollView>
       </View>
+
+      {/* Browse by Center */}
+      {!search && activeCategory === 'All' && (
+        <TouchableOpacity
+          style={[styles.centersBanner, { backgroundColor: colors.card }]}
+          onPress={() => navigation.navigate('DiagnosticCenters' as any)}
+          activeOpacity={0.85}
+        >
+          <View style={styles.centersIcon}>
+            <Ionicons name="business" size={20} color="#7C3AED" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.centersTitle, { color: colors.textPrimary }]}>Browse by Center</Text>
+            <Text style={[styles.centersSub, { color: colors.textTertiary }]}>Find diagnostic centers near you</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+        </TouchableOpacity>
+      )}
 
       {/* Home Collection Banner */}
       {!search && activeCategory === 'All' && (
@@ -285,6 +318,32 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   chipText: { fontSize: FONT_SIZES.sm, fontWeight: '500' },
   chipTextActive: { color: '#fff' },
+  centersBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: SPACING.base,
+    marginBottom: SPACING.sm,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    gap: SPACING.md,
+    ...SHADOWS.sm,
+  },
+  centersIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F5F3FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  centersTitle: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
+  },
+  centersSub: {
+    fontSize: FONT_SIZES.xs,
+    marginTop: 1,
+  },
   bannerWrap: {
     paddingHorizontal: SPACING.base,
     marginBottom: SPACING.sm,
@@ -395,7 +454,33 @@ const styles = StyleSheet.create({
   testDesc: {
     fontSize: FONT_SIZES.xs,
     lineHeight: 18,
+    marginBottom: SPACING.sm,
+  },
+  centerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     marginBottom: SPACING.md,
+  },
+  centerLabel: {
+    fontSize: FONT_SIZES.xs,
+    color: '#7C3AED',
+    fontWeight: '600',
+    flex: 1,
+  },
+  homeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  homeBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#059669',
   },
   testDivider: {
     height: 1,

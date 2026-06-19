@@ -22,9 +22,13 @@ const ICON_CONFIG: Record<string, { icon: string; bg: string; color: string }> =
   general: { icon: 'notifications', bg: '#F39C1220', color: '#F39C12' },
 };
 
-interface Props { profile: any; }
+interface Props {
+  profile: any;
+  onNotifRead?: () => void;
+  onNavigateToAppointments?: () => void;
+}
 
-export default function NotificationsTab({ profile }: Props) {
+export default function NotificationsTab({ profile, onNotifRead, onNavigateToAppointments }: Props) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -54,12 +58,15 @@ export default function NotificationsTab({ profile }: Props) {
       }, (payload: any) => {
         const row = payload.new;
         if (row.role && row.role !== 'doctor') return;
-        setNotifications(prev => [{
-          id: row.id, title: row.title, message: row.message,
-          type: row.type || 'general', isRead: false,
-          createdAt: row.created_at, actionType: row.action_type,
-          actionId: row.action_id, role: row.role,
-        }, ...prev]);
+        setNotifications(prev => {
+          if (prev.some(n => n.id === row.id)) return prev;
+          return [{
+            id: row.id, title: row.title, message: row.message,
+            type: row.type || 'general', isRead: false,
+            createdAt: row.created_at, actionType: row.action_type,
+            actionId: row.action_id, role: row.role,
+          }, ...prev];
+        });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -71,14 +78,26 @@ export default function NotificationsTab({ profile }: Props) {
     setRefreshing(false);
   };
 
-  const markRead = async (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-    await notificationsApi.markRead(id);
+  const handleNotifPress = async (item: Notification) => {
+    // Mark as read
+    if (!item.isRead) {
+      setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, isRead: true } : n));
+      await notificationsApi.markRead(item.id);
+      onNotifRead?.();
+    }
+
+    // Deep link: navigate to appointments tab for appointment notifications
+    if (item.actionType === 'appointment' && onNavigateToAppointments) {
+      onNavigateToAppointments();
+    }
   };
 
   const markAllRead = async () => {
     setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-    if (userId) await notificationsApi.markAllRead(userId, 'doctor');
+    if (userId) {
+      await notificationsApi.markAllRead(userId, 'doctor');
+      onNotifRead?.();
+    }
   };
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
@@ -88,7 +107,7 @@ export default function NotificationsTab({ profile }: Props) {
     return (
       <TouchableOpacity
         style={[styles.card, !item.isRead && styles.cardUnread]}
-        onPress={() => markRead(item.id)}
+        onPress={() => handleNotifPress(item)}
         activeOpacity={0.7}
       >
         <View style={[styles.iconBox, { backgroundColor: cfg.bg }]}>

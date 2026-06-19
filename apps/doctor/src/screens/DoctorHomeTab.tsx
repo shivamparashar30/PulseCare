@@ -49,6 +49,24 @@ export default function DoctorHomeTab({ profile }: Props) {
 
   useEffect(() => { load(); }, [load]);
 
+  // Realtime: auto-refresh when appointments change
+  useEffect(() => {
+    const userId = profile?.id;
+    if (!userId) return;
+
+    const channel = supabase
+      .channel('doctor-home-appointments')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'appointments',
+        filter: `doctor_id=eq.${userId}`,
+      }, () => { load(); })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [profile?.id, load]);
+
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
   const statusColor = (s: string) => STATUS_COLORS[s] || '#DC2626';

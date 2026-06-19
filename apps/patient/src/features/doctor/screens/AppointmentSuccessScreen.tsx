@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,11 +12,36 @@ import { DoctorStackParamList } from '../../../../../../packages/core/src/types'
 type Nav = NativeStackNavigationProp<DoctorStackParamList, 'AppointmentSuccess'>;
 type Route = RouteProp<DoctorStackParamList, 'AppointmentSuccess'>;
 
+const AUTO_REDIRECT_SECONDS = 30;
+
 export default function AppointmentSuccessScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const { doctorId, date, visitType, fee } = route.params;
   const { data: doctor } = useDoctor(doctorId);
+  const [countdown, setCountdown] = useState(AUTO_REDIRECT_SECONDS);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    timerRef.current = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          // Reset Doctor stack then navigate to Home tab
+          setTimeout(() => {
+            navigation.popToTop();
+            navigation.getParent()?.navigate('Home');
+          }, 0);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [navigation]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -84,11 +109,20 @@ export default function AppointmentSuccessScreen() {
           ))}
         </View>
 
+        {/* Auto-redirect countdown */}
+        <View style={styles.countdownBar}>
+          <Ionicons name="time-outline" size={14} color="#64748B" />
+          <Text style={styles.countdownText}>Redirecting to home in {countdown}s</Text>
+        </View>
+
         {/* Buttons */}
         <View style={styles.btnGroup}>
           <TouchableOpacity
             style={styles.primaryBtn}
-            onPress={() => navigation.getParent()?.navigate('Appointments')}
+            onPress={() => {
+              navigation.popToTop();
+              navigation.getParent()?.navigate('Appointments');
+            }}
             activeOpacity={0.85}
           >
             <Ionicons name="calendar" size={18} color="#fff" />
@@ -207,6 +241,11 @@ const styles = StyleSheet.create({
   },
   tipNum: { fontSize: FONT_SIZES.sm, fontWeight: '700', color: COLORS.primary },
   tipText: { flex: 1, fontSize: FONT_SIZES.md, color: COLORS.textSecondary, lineHeight: 20 },
+  countdownBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: 10, marginBottom: SPACING.sm,
+  },
+  countdownText: { fontSize: FONT_SIZES.sm, color: '#64748B' },
   btnGroup: { gap: SPACING.md },
   primaryBtn: {
     flexDirection: 'row',

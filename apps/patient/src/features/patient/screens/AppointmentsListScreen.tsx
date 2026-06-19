@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -40,6 +40,7 @@ const STATUS_CONFIG: Record<string, { bg: string; text: string; icon: string; la
 export default function AppointmentsListScreen() {
   const navigation = useNavigation<Nav>();
   const { colors } = useTheme();
+  const channelRef = useRef<any>(null);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [labBookings, setLabBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,6 +114,42 @@ export default function AppointmentsListScreen() {
 
   // Reload when screen is focused (after coming back from detail, booking, etc.)
   useFocusEffect(useCallback(() => { loadAppointments(); }, [loadAppointments]));
+
+  // Realtime: auto-refresh when appointments are inserted or updated
+  useEffect(() => {
+    let userId: string | null = null;
+
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      userId = session?.user?.id || null;
+      if (!userId) return;
+
+      const channel = supabase
+        .channel('patient-appointments-realtime')
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'appointments',
+          filter: `patient_id=eq.${userId}`,
+        }, () => { loadAppointments(); })
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'appointments',
+          filter: `patient_id=eq.${userId}`,
+        }, () => { loadAppointments(); })
+        .subscribe();
+
+      // Store for cleanup
+      (channelRef as any).current = channel;
+    })();
+
+    return () => {
+      if ((channelRef as any).current) {
+        supabase.removeChannel((channelRef as any).current);
+      }
+    };
+  }, [loadAppointments]);
 
   const onRefresh = async () => { setRefreshing(true); await loadAppointments(); setRefreshing(false); };
 

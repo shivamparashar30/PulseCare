@@ -43,6 +43,7 @@ import OrderTrackingScreen from '../../../../apps/patient/src/features/medicalSt
 // Appointment Screens
 import AppointmentsListScreen from '../../../../apps/patient/src/features/patient/screens/AppointmentsListScreen';
 import AppointmentDetailScreen from '../../../../apps/patient/src/features/patient/screens/AppointmentDetailScreen';
+import AppointmentChatScreen from '../../../../apps/patient/src/features/patient/screens/AppointmentChatScreen';
 
 // Lab / Diagnostics Screens
 import DiagnosticCentersScreen from '../../../../apps/patient/src/features/diagnostics/screens/DiagnosticCentersScreen';
@@ -136,6 +137,7 @@ function AppointmentsStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="AppointmentsList" component={AppointmentsListScreen} />
       <Stack.Screen name="AppointmentDetail" component={AppointmentDetailScreen} />
+      <Stack.Screen name="AppointmentChat" component={AppointmentChatScreen} />
     </Stack.Navigator>
   );
 }

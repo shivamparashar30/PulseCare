@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../supabase';
+import ChatScreen from '../../../../packages/shared/src/components/ChatScreen';
 
 interface Props { profile: any; }
 
@@ -30,6 +31,11 @@ export default function BookingsTab({ profile }: Props) {
   const [bookings, setBookings] = useState<any[]>([]);
   const [filter, setFilter] = useState<Filter>('All');
   const [refreshing, setRefreshing] = useState(false);
+
+  // Chat modal state
+  const [chatModal, setChatModal] = useState(false);
+  const [chatBookingId, setChatBookingId] = useState('');
+  const [chatPatientName, setChatPatientName] = useState('');
 
   // Accept modal state
   const [acceptModal, setAcceptModal] = useState(false);
@@ -194,6 +200,17 @@ export default function BookingsTab({ profile }: Props) {
             </View>
             <View style={styles.actions}>
               <TouchableOpacity
+                style={[styles.acceptBtn, { backgroundColor: '#7C3AED' }]}
+                onPress={() => {
+                  setChatBookingId(booking.id);
+                  setChatPatientName(patient?.full_name || 'Patient');
+                  setChatModal(true);
+                }}
+              >
+                <Ionicons name="chatbubbles" size={16} color="#fff" />
+                <Text style={styles.acceptText}>Chat</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={[styles.acceptBtn, { backgroundColor: '#059669' }]}
                 onPress={() => handleComplete(booking.id)}
               >
@@ -244,6 +261,18 @@ export default function BookingsTab({ profile }: Props) {
           filtered.map(renderBookingCard)
         )}
       </ScrollView>
+
+      {/* Chat Modal */}
+      <Modal visible={chatModal} animationType="slide">
+        <ChatScreen
+          entityType="lab_booking"
+          entityId={chatBookingId}
+          otherPersonName={chatPatientName}
+          isBusiness={true}
+          accentColor="#7C3AED"
+          onBack={() => setChatModal(false)}
+        />
+      </Modal>
 
       {/* Accept Modal */}
       <Modal visible={acceptModal} transparent animationType="slide">

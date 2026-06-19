@@ -9,9 +9,11 @@ import {
   RefreshControl,
   Linking,
   Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import ChatScreen from '../../../../../../packages/shared/src/components/ChatScreen';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -45,6 +47,7 @@ export default function OrderTrackingScreen() {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [chatVisible, setChatVisible] = useState(false);
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -329,6 +332,14 @@ export default function OrderTrackingScreen() {
           </View>
         )}
 
+        {/* Chat with Store button - visible for active orders */}
+        {['confirmed', 'processing', 'ready', 'out_for_delivery'].includes(order.status) && (
+          <TouchableOpacity style={styles.chatBtn} onPress={() => setChatVisible(true)}>
+            <Ionicons name="chatbubbles" size={18} color="#fff" />
+            <Text style={styles.chatBtnText}>Chat with Store</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Cancel button */}
         {order.status === 'pending' && (
           <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
@@ -339,6 +350,18 @@ export default function OrderTrackingScreen() {
 
         <View style={{ height: 30 }} />
       </ScrollView>
+
+      {/* Chat Modal */}
+      <Modal visible={chatVisible} animationType="slide">
+        <ChatScreen
+          entityType="order"
+          entityId={orderId}
+          otherPersonName={store?.store_name || 'Store'}
+          isBusiness={false}
+          accentColor={COLORS.primary}
+          onBack={() => setChatVisible(false)}
+        />
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -404,6 +427,12 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   callStoreText: { fontSize: FONT_SIZES.sm, color: COLORS.primary, fontWeight: '700' },
+  chatBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: COLORS.primary, borderRadius: BORDER_RADIUS.md,
+    paddingVertical: 14, marginBottom: SPACING.md,
+  },
+  chatBtnText: { fontSize: FONT_SIZES.base, color: '#fff', fontWeight: '700' },
   cancelBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     borderWidth: 1.5, borderColor: '#EF4444', borderRadius: BORDER_RADIUS.md,

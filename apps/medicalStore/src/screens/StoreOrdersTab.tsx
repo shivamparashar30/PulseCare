@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../supabase';
+import ChatScreen from '../../../../packages/shared/src/components/ChatScreen';
 
 interface Props { profile: any; }
 
@@ -43,6 +44,11 @@ export default function StoreOrdersTab({ profile }: Props) {
   const [otpInput, setOtpInput] = useState('');
   const [verifying, setVerifying] = useState(false);
 
+  // Chat modal state
+  const [chatModal, setChatModal] = useState(false);
+  const [chatOrderId, setChatOrderId] = useState('');
+  const [chatCustomerName, setChatCustomerName] = useState('');
+
   // Accept order modal
   const [acceptModal, setAcceptModal] = useState(false);
   const [acceptOrderId, setAcceptOrderId] = useState('');
@@ -51,7 +57,7 @@ export default function StoreOrdersTab({ profile }: Props) {
   const load = useCallback(async () => {
     const { data } = await supabase
       .from('orders')
-      .select('*, items:order_items(id, quantity, price, medicine:medicines!medicine_id(name))')
+      .select('*, items:order_items(id, quantity, price, medicine:medicines!medicine_id(name)), patient:profiles!patient_id(full_name)')
       .eq('store_id', profile.id)
       .order('created_at', { ascending: false });
 
@@ -273,6 +279,21 @@ export default function StoreOrdersTab({ profile }: Props) {
                 <Text style={styles.actionBtnText}>Verify Delivery OTP</Text>
               </TouchableOpacity>
             )}
+            {/* Chat button for active orders */}
+            {['confirmed', 'processing', 'ready', 'out_for_delivery'].includes(item.status) && (
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: '#2563EB', marginTop: item.status === 'confirmed' || item.status === 'processing' || item.status === 'ready' || item.status === 'out_for_delivery' ? 6 : 10 }]}
+                onPress={() => {
+                  const patient = Array.isArray(item.patient) ? item.patient[0] : item.patient;
+                  setChatOrderId(item.id);
+                  setChatCustomerName(patient?.full_name || 'Customer');
+                  setChatModal(true);
+                }}
+              >
+                <Ionicons name="chatbubbles" size={16} color="#fff" />
+                <Text style={styles.actionBtnText}>Chat with Customer</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
         showsVerticalScrollIndicator={false}
@@ -314,6 +335,18 @@ export default function StoreOrdersTab({ profile }: Props) {
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* Chat Modal */}
+      <Modal visible={chatModal} animationType="slide">
+        <ChatScreen
+          entityType="order"
+          entityId={chatOrderId}
+          otherPersonName={chatCustomerName}
+          isBusiness={true}
+          accentColor="#059669"
+          onBack={() => setChatModal(false)}
+        />
       </Modal>
 
       {/* OTP Verification Modal */}

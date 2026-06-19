@@ -14,12 +14,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../../../../../packages/providers/src/AuthProvider';
 import { useTheme } from '../../../../../../packages/providers/src/ThemeProvider';
 import { COLORS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../../../../../packages/core/src/constants';
 import { Card, SectionHeader, StarRating, PriceDisplay, DiscountBadge, Badge } from '../../../../../../packages/shared/src/components';
 import { useDoctors, useMedicines, useLabTests, useMedicalStores, useHealthPackages, useUnreadCount } from '../../../../../../packages/core/src/hooks';
 import { BANNERS } from '../../../../../../packages/core/src/api/mockData';
+import { supabase } from '../../../../../../packages/supabase/src/client';
 
 const { width } = Dimensions.get('window');
 const BANNER_WIDTH = width - SPACING.base * 2;
@@ -42,7 +44,28 @@ export default function HomeScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [activeBanner, setActiveBanner] = useState(0);
 
-  const { data: unreadCount = 0 } = useUnreadCount(user?.id, 'patient');
+  const { data: unreadCount = 0, refetch: refetchUnread } = useUnreadCount(user?.id, 'patient');
+
+  // Refetch unread count every time HomeScreen is focused (e.g. after reading notifications)
+  useFocusEffect(useCallback(() => { refetchUnread(); }, [refetchUnread]));
+
+  // Realtime: instant badge update on new or read notifications
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel('patient-notif-badge')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${user.id}`,
+      }, () => {
+        refetchUnread();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id, refetchUnread]);
 
   const { data: allDoctors = [], refetch: refetchDoctors } = useDoctors();
   const { data: allMedicines = [], refetch: refetchMeds } = useMedicines();

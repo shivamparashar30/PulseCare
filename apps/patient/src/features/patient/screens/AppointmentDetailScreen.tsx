@@ -199,6 +199,24 @@ export default function AppointmentDetailScreen() {
           )}
         </View>
 
+        {/* Chat button for Confirmed appointments */}
+        {isConfirmed && (
+          <TouchableOpacity
+            style={styles.chatBtn}
+            onPress={() => (navigation as any).navigate('AppointmentChat', { appointmentId: appt.id, doctorName: docName })}
+            activeOpacity={0.85}
+          >
+            <View style={styles.chatBtnIcon}>
+              <Ionicons name="chatbubbles" size={20} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.chatBtnTitle}>Chat with Doctor</Text>
+              <Text style={styles.chatBtnSub}>Send messages to {docName}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#fff" />
+          </TouchableOpacity>
+        )}
+
         {/* Notes from doctor */}
         {appt.notes && (
           <View style={[styles.card, { backgroundColor: colors.card }]}>
@@ -292,6 +310,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#D1FAE5', borderRadius: BORDER_RADIUS.md, paddingHorizontal: SPACING.md, paddingVertical: 8,
   },
   paidText: { fontSize: FONT_SIZES.xs, fontWeight: '600', color: '#047857', flex: 1 },
+  chatBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+    marginHorizontal: SPACING.base, marginBottom: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg, padding: SPACING.base,
+    backgroundColor: COLORS.primary,
+  },
+  chatBtnIcon: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  chatBtnTitle: { color: '#fff', fontSize: FONT_SIZES.md, fontWeight: '700' },
+  chatBtnSub: { color: 'rgba(255,255,255,0.7)', fontSize: FONT_SIZES.xs, marginTop: 1 },
   cancelLink: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     marginHorizontal: SPACING.base, marginTop: SPACING.sm, paddingVertical: SPACING.md,

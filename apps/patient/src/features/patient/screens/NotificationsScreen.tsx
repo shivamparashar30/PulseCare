@@ -71,7 +71,10 @@ export default function NotificationsScreen({ navigation }: any) {
           actionId: row.action_id,
           role: row.role,
         };
-        setNotifications(prev => [newNotif, ...prev]);
+        setNotifications(prev => {
+          if (prev.some(n => n.id === newNotif.id)) return prev;
+          return [newNotif, ...prev];
+        });
       })
       .subscribe();
 
@@ -87,6 +90,28 @@ export default function NotificationsScreen({ navigation }: any) {
   const filtered = filter === 'all'
     ? notifications
     : notifications.filter(n => n.type === filter);
+
+  const handleNotifPress = async (item: Notification) => {
+    // Mark as read
+    if (!item.isRead) {
+      setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, isRead: true } : n));
+      await notificationsApi.markRead(item.id);
+    }
+
+    // Deep link based on action_type
+    if (item.actionType === 'appointment' && item.actionId) {
+      // Navigate to Appointments tab → AppointmentDetail
+      const parent = navigation.getParent?.();
+      if (parent) {
+        parent.navigate('Appointments', { screen: 'AppointmentDetail', params: { appointmentId: item.actionId } });
+      }
+    } else if (item.actionType === 'order' && item.actionId) {
+      const parent = navigation.getParent?.();
+      if (parent) {
+        parent.navigate('Pharmacy', { screen: 'OrderTracking', params: { orderId: item.actionId } });
+      }
+    }
+  };
 
   const markRead = async (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
@@ -117,7 +142,7 @@ export default function NotificationsScreen({ navigation }: any) {
           { backgroundColor: colors.card, borderColor: colors.border },
           !item.isRead && { borderLeftColor: COLORS.primary, borderLeftWidth: 3 },
         ]}
-        onPress={() => markRead(item.id)}
+        onPress={() => handleNotifPress(item)}
         activeOpacity={0.7}
       >
         <View style={[styles.iconBox, { backgroundColor: cfg.bg }]}>

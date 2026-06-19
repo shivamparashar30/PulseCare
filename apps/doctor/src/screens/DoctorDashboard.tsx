@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../supabase';
+import { notificationsApi } from '../../../../packages/core/src/api/api';
 import DoctorHomeTab from './DoctorHomeTab';
 import AppointmentsTab from './AppointmentsTab';
 import ProfileTab from './ProfileTab';
@@ -15,8 +17,48 @@ interface Props {
 }
 
 export default function DoctorDashboard({ onLogout, profile }: Props) {
+  const [unreadCount, setUnreadCount] = useState(0);
+  const navRef = useRef<NavigationContainerRef<any>>(null);
+
+  const fetchUnread = useCallback(async () => {
+    if (!profile?.id) return;
+    const count = await notificationsApi.getUnreadCount(profile.id, 'doctor');
+    setUnreadCount(count);
+  }, [profile?.id]);
+
+  useEffect(() => { fetchUnread(); }, [fetchUnread]);
+
+  // Realtime: listen for new notifications to update badge instantly
+  useEffect(() => {
+    if (!profile?.id) return;
+
+    const channel = supabase
+      .channel('doctor-notif-badge')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${profile.id}`,
+      }, (payload: any) => {
+        const row = payload.new;
+        if (row.role && row.role !== 'doctor') return;
+        setUnreadCount(prev => prev + 1);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [profile?.id]);
+
+  // Called by NotificationsTab when user marks notifications as read
+  const onNotifRead = useCallback(() => { fetchUnread(); }, [fetchUnread]);
+
+  // Deep link: navigate to Appointments tab from notification
+  const navigateToAppointments = useCallback(() => {
+    navRef.current?.navigate('Appointments');
+  }, []);
+
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navRef}>
       <Tab.Navigator
         screenOptions={({ route }) => ({
           headerShown: false,
@@ -34,7 +76,21 @@ export default function DoctorDashboard({ onLogout, profile }: Props) {
       >
         <Tab.Screen name="Home">{() => <DoctorHomeTab profile={profile} />}</Tab.Screen>
         <Tab.Screen name="Appointments">{() => <AppointmentsTab profile={profile} />}</Tab.Screen>
-        <Tab.Screen name="Notifications">{() => <NotificationsTab profile={profile} />}</Tab.Screen>
+        <Tab.Screen
+          name="Notifications"
+          options={{
+            tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+            tabBarBadgeStyle: { backgroundColor: '#EF4444', fontSize: 10 },
+          }}
+        >
+          {() => (
+            <NotificationsTab
+              profile={profile}
+              onNotifRead={onNotifRead}
+              onNavigateToAppointments={navigateToAppointments}
+            />
+          )}
+        </Tab.Screen>
         <Tab.Screen name="Profile">{() => <ProfileTab profile={profile} onLogout={onLogout} />}</Tab.Screen>
       </Tab.Navigator>
     </NavigationContainer>

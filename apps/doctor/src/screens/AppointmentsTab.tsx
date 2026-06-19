@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../supabase';
+import ChatScreen from '../../../../packages/shared/src/components/ChatScreen';
 
 interface Props { profile: any; }
 
@@ -42,6 +43,11 @@ export default function AppointmentsTab({ profile }: Props) {
   const [rejectModal, setRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
 
+  // Chat modal state
+  const [chatModal, setChatModal] = useState(false);
+  const [chatApptId, setChatApptId] = useState('');
+  const [chatPatientName, setChatPatientName] = useState('');
+
   const load = useCallback(async () => {
     const userId = profile?.id;
     if (!userId) return;
@@ -52,10 +58,35 @@ export default function AppointmentsTab({ profile }: Props) {
       .eq('doctor_id', userId)
       .order('created_at', { ascending: false });
 
+
     setAppointments(data || []);
   }, [profile?.id]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Realtime: auto-refresh when appointments are inserted or updated
+  useEffect(() => {
+    const userId = profile?.id;
+    if (!userId) return;
+
+    const channel = supabase
+      .channel('doctor-appointments-realtime')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'appointments',
+        filter: `doctor_id=eq.${userId}`,
+      }, () => { load(); })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'appointments',
+        filter: `doctor_id=eq.${userId}`,
+      }, () => { load(); })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [profile?.id, load]);
 
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
@@ -118,6 +149,13 @@ export default function AppointmentsTab({ profile }: Props) {
       dates.push(d.toISOString().split('T')[0]);
     }
     return dates;
+  };
+
+  const openChat = (appt: any) => {
+    const patient = Array.isArray(appt.patient) ? appt.patient[0] : appt.patient;
+    setChatApptId(appt.id);
+    setChatPatientName(patient?.full_name || 'Patient');
+    setChatModal(true);
   };
 
   const statusColor = (s: string) => STATUS_COLORS[s] || '#DC2626';
@@ -204,6 +242,13 @@ export default function AppointmentsTab({ profile }: Props) {
               </View>
             </View>
             <View style={styles.actions}>
+              <TouchableOpacity
+                style={[styles.acceptBtn, { backgroundColor: '#2563EB' }]}
+                onPress={() => openChat(appt)}
+              >
+                <Ionicons name="chatbubbles" size={16} color="#fff" />
+                <Text style={styles.acceptText}>Chat</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.acceptBtn, { backgroundColor: '#059669' }]}
                 onPress={() => Alert.alert('Complete', 'Mark this appointment as completed?', [
@@ -306,6 +351,17 @@ export default function AppointmentsTab({ profile }: Props) {
             </TouchableOpacity>
           </View>
         </View>
+      </Modal>
+
+      {/* Chat Modal */}
+      <Modal visible={chatModal} animationType="slide">
+        <ChatScreen
+          appointmentId={chatApptId}
+          otherPersonName={chatPatientName}
+          isDoctor={true}
+          accentColor="#2563EB"
+          onBack={() => setChatModal(false)}
+        />
       </Modal>
 
       {/* Reject Modal */}

@@ -8,7 +8,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../supabase';
 import ChatScreen from '../../../../packages/shared/src/components/ChatScreen';
 
-interface Props { profile: any; }
+interface Props {
+  profile: any;
+  pendingChat?: { appointmentId: string; patientName: string } | null;
+  onPendingChatHandled?: () => void;
+}
 
 const FILTERS = ['All', 'Pending', 'Approved', 'Confirmed', 'Completed', 'Cancelled'] as const;
 type Filter = typeof FILTERS[number];
@@ -28,7 +32,7 @@ const STATUS_COLORS: Record<string, string> = {
   Upcoming: '#2563EB',
 };
 
-export default function AppointmentsTab({ profile }: Props) {
+export default function AppointmentsTab({ profile, pendingChat, onPendingChatHandled }: Props) {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [filter, setFilter] = useState<Filter>('All');
   const [refreshing, setRefreshing] = useState(false);
@@ -47,6 +51,16 @@ export default function AppointmentsTab({ profile }: Props) {
   const [chatModal, setChatModal] = useState(false);
   const [chatApptId, setChatApptId] = useState('');
   const [chatPatientName, setChatPatientName] = useState('');
+
+  // Open chat from in-app notification banner
+  useEffect(() => {
+    if (pendingChat) {
+      setChatApptId(pendingChat.appointmentId);
+      setChatPatientName(pendingChat.patientName);
+      setChatModal(true);
+      onPendingChatHandled?.();
+    }
+  }, [pendingChat]);
 
   const load = useCallback(async () => {
     const userId = profile?.id;

@@ -17,6 +17,7 @@ import {
   Dimensions,
   Modal,
   StatusBar,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +25,9 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { supabase } from '../../../../packages/supabase/src/client';
+import CallOverlay from './CallOverlay';
+import { activeChatEntityId } from './InAppNotificationBanner';
+import { ZegoCallService } from '../services/ZegoCallService';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const IMAGE_MAX_WIDTH = SCREEN_WIDTH * 0.6;
@@ -77,6 +81,81 @@ const PERM_COLUMN: Record<EntityType, string> = {
   lab_booking: 'customer_can_chat',
 };
 
+const INACTIVE_STATUSES: Record<EntityType, string[]> = {
+  appointment: ['Completed', 'Cancelled'],
+  order: ['delivered', 'cancelled', 'rejected'],
+  lab_booking: ['Completed', 'Cancelled'],
+};
+
+function TypingBubble({ name, accentColor }: { name: string; accentColor: string }) {
+  const dot1 = useRef(new Animated.Value(0)).current;
+  const dot2 = useRef(new Animated.Value(0)).current;
+  const dot3 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const animate = (dot: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dot, { toValue: 1, duration: 300, useNativeDriver: true }),
+          Animated.timing(dot, { toValue: 0, duration: 300, useNativeDriver: true }),
+        ]),
+      );
+    const a1 = animate(dot1, 0);
+    const a2 = animate(dot2, 200);
+    const a3 = animate(dot3, 400);
+    a1.start(); a2.start(); a3.start();
+    return () => { a1.stop(); a2.stop(); a3.stop(); };
+  }, []);
+
+  const dotStyle = (anim: Animated.Value) => ({
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: accentColor,
+    marginHorizontal: 2,
+    transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [0, -5] }) }],
+    opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }),
+  });
+
+  return (
+    <View style={typingStyles.container}>
+      <View style={typingStyles.bubble}>
+        <Animated.View style={dotStyle(dot1)} />
+        <Animated.View style={dotStyle(dot2)} />
+        <Animated.View style={dotStyle(dot3)} />
+      </View>
+      <Text style={typingStyles.label}>{name.split(' ')[0]} is typing</Text>
+    </View>
+  );
+}
+
+const typingStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    gap: 8,
+  },
+  bubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderBottomLeftRadius: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  label: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
+  },
+});
+
 function ChatScreenInner({ entityType, entityId, otherPersonName, isBusiness, accentColor = '#0066CC', onBack }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState('');
@@ -87,13 +166,35 @@ function ChatScreenInner({ entityType, entityId, otherPersonName, isBusiness, ac
   const [customerCanChat, setCustomerCanChat] = useState(false);
   const [toggling, setToggling] = useState(false);
   const [viewerImage, setViewerImage] = useState<string | null>(null);
+  const [entityActive, setEntityActive] = useState(true);
+  const [otherTyping, setOtherTyping] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isTypingRef = useRef(false);
+  const presenceChannelRef = useRef<any>(null);
+
+  // Call state
+  const [callState, setCallState] = useState<'idle' | 'outgoing' | 'incoming' | 'ongoing'>('idle');
+  const [callType, setCallType] = useState<'audio' | 'video'>('audio');
+  const [callSessionId, setCallSessionId] = useState<string | null>(null);
+  const [callDuration, setCallDuration] = useState(0);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isSpeaker, setIsSpeaker] = useState(false);
+  const [isCameraOff, setIsCameraOff] = useState(false);
+  const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [remoteStreamID, setRemoteStreamID] = useState<string | null>(null);
 
   const fkCol = FK_COLUMN[entityType];
   const parentTable = PARENT_TABLE[entityType];
   const permCol = PERM_COLUMN[entityType];
 
-  // Get current user and permission settings
+  // Suppress in-app notification banner for this chat
+  useEffect(() => {
+    activeChatEntityId.current = entityId;
+    return () => { activeChatEntityId.current = null; };
+  }, [entityId]);
+
+  // Get current user, permission settings, and entity status
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -101,12 +202,18 @@ function ChatScreenInner({ entityType, entityId, otherPersonName, isBusiness, ac
 
       const { data } = await supabase
         .from(parentTable)
-        .select(permCol)
+        .select(`${permCol}, status`)
         .eq('id', entityId)
         .single();
-      if (data) setCustomerCanChat((data as any)[permCol] ?? false);
+      if (data) {
+        setCustomerCanChat((data as any)[permCol] ?? false);
+        const status = (data as any).status;
+        if (status && INACTIVE_STATUSES[entityType].includes(status)) {
+          setEntityActive(false);
+        }
+      }
     })();
-  }, [entityId, parentTable, permCol]);
+  }, [entityId, parentTable, permCol, entityType]);
 
   // Fetch messages
   const fetchMessages = useCallback(async () => {
@@ -142,9 +249,8 @@ function ChatScreenInner({ entityType, entityId, otherPersonName, isBusiness, ac
     return () => { supabase.removeChannel(channel); };
   }, [entityId, entityType, fkCol]);
 
-  // Listen for permission changes (for patient/customer side)
+  // Listen for permission + status changes (both sides need status updates)
   useEffect(() => {
-    if (isBusiness) return;
     const channel = supabase
       .channel(`chat-perms-${entityType}-${entityId}`)
       .on('postgres_changes', {
@@ -153,14 +259,81 @@ function ChatScreenInner({ entityType, entityId, otherPersonName, isBusiness, ac
         table: parentTable,
         filter: `id=eq.${entityId}`,
       }, (payload: any) => {
-        if (payload.new?.[permCol] !== undefined) {
+        if (!isBusiness && payload.new?.[permCol] !== undefined) {
           setCustomerCanChat(payload.new[permCol]);
+        }
+        // Auto-disable when entity is completed
+        const newStatus = payload.new?.status;
+        if (newStatus && INACTIVE_STATUSES[entityType].includes(newStatus)) {
+          setEntityActive(false);
         }
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [entityId, entityType, isBusiness, parentTable, permCol]);
+
+  // Typing indicator via Supabase Realtime Broadcast (no Presence needed)
+  const otherTypingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase.channel(`typing-${entityType}-${entityId}`);
+
+    channel
+      .on('broadcast', { event: 'typing' }, (payload: any) => {
+        if (payload.payload?.userId === userId) return; // ignore own events
+        if (payload.payload?.typing) {
+          setOtherTyping(true);
+          // Auto-clear after 3s as safety net
+          if (otherTypingTimerRef.current) clearTimeout(otherTypingTimerRef.current);
+          otherTypingTimerRef.current = setTimeout(() => setOtherTyping(false), 3000);
+        } else {
+          setOtherTyping(false);
+          if (otherTypingTimerRef.current) clearTimeout(otherTypingTimerRef.current);
+        }
+      })
+      .subscribe();
+
+    presenceChannelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+      presenceChannelRef.current = null;
+      if (otherTypingTimerRef.current) clearTimeout(otherTypingTimerRef.current);
+    };
+  }, [userId, entityId, entityType]);
+
+  const broadcastTyping = (typing: boolean) => {
+    presenceChannelRef.current?.send({
+      type: 'broadcast',
+      event: 'typing',
+      payload: { userId, typing },
+    });
+  };
+
+  const handleTextChange = (val: string) => {
+    setText(val);
+
+    if (!isTypingRef.current && val.length > 0) {
+      isTypingRef.current = true;
+      broadcastTyping(true);
+    }
+
+    // Reset the stop-typing timer on every keystroke
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      isTypingRef.current = false;
+      broadcastTyping(false);
+    }, 2000);
+
+    if (val.length === 0) {
+      isTypingRef.current = false;
+      broadcastTyping(false);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    }
+  };
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -175,6 +348,8 @@ function ChatScreenInner({ entityType, entityId, otherPersonName, isBusiness, ac
 
     setSending(true);
     setText('');
+    isTypingRef.current = false;
+    broadcastTyping(false);
 
     const { error } = await supabase.from('chat_messages').insert({
       [fkCol]: entityId,
@@ -362,16 +537,215 @@ function ChatScreenInner({ entityType, entityId, otherPersonName, isBusiness, ac
     setToggling(false);
   };
 
-  const canType = isBusiness || customerCanChat;
+  // ── Call Functions ──
+
+  const getReceiverId = async (): Promise<string | null> => {
+    if (!userId) return null;
+    const idColumns: Record<EntityType, [string, string]> = {
+      appointment: ['patient_id', 'doctor_id'],
+      order: ['patient_id', 'store_id'],
+      lab_booking: ['patient_id', 'center_id'],
+    };
+    const [col1, col2] = idColumns[entityType];
+    const { data } = await supabase.from(parentTable).select(`${col1}, ${col2}`).eq('id', entityId).single();
+    if (!data) return null;
+    return (data as any)[col1] === userId ? (data as any)[col2] : (data as any)[col1];
+  };
+
+  const startCall = async (type: 'audio' | 'video') => {
+    const receiverId = await getReceiverId();
+    if (!receiverId || !userId) {
+      Alert.alert('Error', 'Could not find the other participant.');
+      return;
+    }
+
+    const { data, error } = await supabase.from('call_sessions').insert({
+      caller_id: userId,
+      receiver_id: receiverId,
+      entity_type: entityType,
+      entity_id: entityId,
+      call_type: type,
+      status: 'ringing',
+    }).select().single();
+
+    if (error || !data) {
+      Alert.alert('Error', 'Could not start call.');
+      return;
+    }
+
+    setCallType(type);
+    setCallSessionId(data.id);
+    setCallState('outgoing');
+    setCallDuration(0);
+    setIsMuted(false);
+    setIsSpeaker(false);
+    setIsCameraOff(false);
+  };
+
+  const acceptCall = async () => {
+    if (!callSessionId) return;
+    await supabase.from('call_sessions').update({ status: 'ongoing', started_at: new Date().toISOString() }).eq('id', callSessionId);
+    setCallState('ongoing');
+    setCallDuration(0);
+    callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
+  };
+
+  const declineCall = async () => {
+    if (!callSessionId) return;
+    await supabase.from('call_sessions').update({ status: 'declined', ended_at: new Date().toISOString() }).eq('id', callSessionId);
+    sendCallMessage('declined');
+    resetCallState();
+  };
+
+  const endCall = async () => {
+    if (!callSessionId) return;
+    const status = callState === 'outgoing' ? 'missed' : 'ended';
+    await supabase.from('call_sessions').update({ status, ended_at: new Date().toISOString() }).eq('id', callSessionId);
+    const dur = callState === 'ongoing' ? formatCallDuration(callDuration) : null;
+    sendCallMessage(status, dur);
+    resetCallState();
+  };
+
+  const formatCallDuration = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2, '0')}`;
+  };
+
+  const sendCallMessage = async (status: string, duration?: string | null) => {
+    if (!userId) return;
+    const label = callType === 'video' ? 'Video' : 'Audio';
+    let msg = '';
+    if (status === 'ended') msg = `${label} call ended${duration ? ` (${duration})` : ''}`;
+    else if (status === 'missed') msg = `Missed ${label.toLowerCase()} call`;
+    else if (status === 'declined') msg = `${label} call declined`;
+
+    await supabase.from('chat_messages').insert({
+      [fkCol]: entityId,
+      sender_id: userId,
+      message: msg,
+      message_type: 'call',
+    });
+  };
+
+  const resetCallState = () => {
+    setCallState('idle');
+    setCallSessionId(null);
+    setCallDuration(0);
+    if (callTimerRef.current) { clearInterval(callTimerRef.current); callTimerRef.current = null; }
+  };
+
+  // Listen for incoming calls + call status updates
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase
+      .channel(`calls-${entityType}-${entityId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'call_sessions',
+        filter: `entity_id=eq.${entityId}`,
+      }, (payload: any) => {
+        const row = payload.new;
+        if (row.receiver_id === userId && row.status === 'ringing') {
+          setCallSessionId(row.id);
+          setCallType(row.call_type);
+          setCallState('incoming');
+        }
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'call_sessions',
+        filter: `entity_id=eq.${entityId}`,
+      }, (payload: any) => {
+        const row = payload.new;
+        if (row.id !== callSessionId && callState === 'idle') return;
+
+        if (row.status === 'ongoing' && callState === 'outgoing') {
+          // Other person accepted
+          setCallState('ongoing');
+          setCallDuration(0);
+          callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
+        } else if (['ended', 'declined', 'missed'].includes(row.status)) {
+          if (callState !== 'idle') {
+            resetCallState();
+          }
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [userId, entityId, entityType, callSessionId, callState]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (callTimerRef.current) clearInterval(callTimerRef.current);
+    };
+  }, []);
+
+  // Zegocloud: join room when call becomes ongoing, destroy when it ends
+  useEffect(() => {
+    if (callState !== 'ongoing' || !callSessionId || !userId) return;
+
+    let active = true;
+
+    (async () => {
+      const ok = await ZegoCallService.init();
+      if (!ok || !active) return;
+
+      ZegoCallService.onRemoteStream = (sid) => {
+        if (active) setRemoteStreamID(sid);
+      };
+
+      await ZegoCallService.joinRoom(
+        callSessionId,
+        userId,
+        isBusiness ? 'Business' : 'Patient',
+        callType === 'video',
+      );
+    })();
+
+    return () => {
+      active = false;
+      ZegoCallService.destroy();
+      setRemoteStreamID(null);
+    };
+  }, [callState, callSessionId, userId]);
+
+  // Zego-aware toggle handlers
+  const handleToggleMute = () => {
+    const next = !isMuted;
+    setIsMuted(next);
+    ZegoCallService.muteMic(next);
+  };
+
+  const handleToggleSpeaker = () => {
+    const next = !isSpeaker;
+    setIsSpeaker(next);
+    ZegoCallService.setSpeaker(next);
+  };
+
+  const handleToggleCamera = () => {
+    const next = !isCameraOff;
+    setIsCameraOff(next);
+    ZegoCallService.setCamera(!next); // enableCamera is the opposite of isCameraOff
+  };
+
+  const canType = entityActive && (isBusiness || customerCanChat);
 
   const permLabel = entityType === 'appointment' ? 'Allow patient to reply' : 'Allow customer to reply';
   const permSubEnabled = entityType === 'appointment' ? 'Patient can send messages' : 'Customer can send messages';
   const permSubDisabled = 'Only you can send messages';
-  const disabledLabel = entityType === 'appointment'
-    ? 'Doctor has not enabled replies yet'
-    : entityType === 'order'
-      ? 'Store has not enabled replies yet'
-      : 'Center has not enabled replies yet';
+  const disabledLabel = !entityActive
+    ? 'This conversation has ended'
+    : entityType === 'appointment'
+      ? 'Doctor has not enabled replies yet'
+      : entityType === 'order'
+        ? 'Store has not enabled replies yet'
+        : 'Center has not enabled replies yet';
 
   const formatTime = (dateStr: string) => {
     const d = new Date(dateStr);
@@ -421,6 +795,7 @@ function ChatScreenInner({ entityType, entityId, otherPersonName, isBusiness, ac
     const isImage = item.message_type === 'image';
     const isVideo = item.message_type === 'video';
     const isDocument = item.message_type === 'document';
+    const isCall = item.message_type === 'call';
 
     let docUrl = '';
     let docName = '';
@@ -438,7 +813,19 @@ function ChatScreenInner({ entityType, entityId, otherPersonName, isBusiness, ac
           </View>
         )}
 
-        {isImage ? (
+        {isCall ? (
+          <View style={styles.callMsgWrap}>
+            <View style={styles.callMsgCard}>
+              <Ionicons
+                name={item.message.toLowerCase().includes('video') ? 'videocam' : 'call'}
+                size={16}
+                color={item.message.toLowerCase().includes('missed') || item.message.toLowerCase().includes('declined') ? '#EF4444' : '#10B981'}
+              />
+              <Text style={styles.callMsgText}>{item.message}</Text>
+              <Text style={styles.callMsgTime}>{formatTime(item.created_at)}</Text>
+            </View>
+          </View>
+        ) : isImage ? (
           <TouchableOpacity
             style={[styles.imageBubble, isMine ? styles.bubbleMine : styles.bubbleOther]}
             onPress={() => setViewerImage(item.message)}
@@ -518,11 +905,20 @@ function ChatScreenInner({ entityType, entityId, otherPersonName, isBusiness, ac
             {entityType === 'appointment' ? 'Appointment Chat' : entityType === 'order' ? 'Order Chat' : 'Booking Chat'}
           </Text>
         </View>
-        <View style={[styles.onlineDot, { backgroundColor: '#10B981' }]} />
+        {entityActive && (
+          <>
+            <TouchableOpacity style={styles.callHeaderBtn} onPress={() => startCall('audio')} activeOpacity={0.7}>
+              <Ionicons name="call" size={20} color={accentColor} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.callHeaderBtn} onPress={() => startCall('video')} activeOpacity={0.7}>
+              <Ionicons name="videocam" size={20} color={accentColor} />
+            </TouchableOpacity>
+          </>
+        )}
       </View>
 
       {/* Business toggle for customer permissions */}
-      {isBusiness && (
+      {isBusiness && entityActive && (
         <View style={styles.permissionBar}>
           <View style={{ flex: 1 }}>
             <Text style={styles.permLabel}>{permLabel}</Text>
@@ -568,6 +964,10 @@ function ChatScreenInner({ entityType, entityId, otherPersonName, isBusiness, ac
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
         />
 
+        {otherTyping && (
+          <TypingBubble name={otherPersonName} accentColor={accentColor} />
+        )}
+
         {canType ? (
           <View style={styles.inputBar}>
             <TouchableOpacity style={styles.attachBtn} onPress={showAttachmentOptions} disabled={uploading}>
@@ -578,7 +978,7 @@ function ChatScreenInner({ entityType, entityId, otherPersonName, isBusiness, ac
               placeholder="Type a message..."
               placeholderTextColor="#9CA3AF"
               value={text}
-              onChangeText={setText}
+              onChangeText={handleTextChange}
               multiline
               maxLength={1000}
             />
@@ -595,7 +995,7 @@ function ChatScreenInner({ entityType, entityId, otherPersonName, isBusiness, ac
           </View>
         ) : (
           <View style={styles.disabledBar}>
-            <Ionicons name="lock-closed-outline" size={16} color="#9CA3AF" />
+            <Ionicons name={!entityActive ? 'checkmark-circle' : 'lock-closed-outline'} size={16} color={!entityActive ? '#10B981' : '#9CA3AF'} />
             <Text style={styles.disabledText}>{disabledLabel}</Text>
           </View>
         )}
@@ -624,6 +1024,26 @@ function ChatScreenInner({ entityType, entityId, otherPersonName, isBusiness, ac
           </TouchableOpacity>
         </View>
       </Modal>
+
+      {/* Call Overlay */}
+      <CallOverlay
+        visible={callState !== 'idle'}
+        callState={callState}
+        callType={callType}
+        otherPersonName={otherPersonName}
+        duration={callDuration}
+        isMuted={isMuted}
+        isSpeaker={isSpeaker}
+        isCameraOff={isCameraOff}
+        accentColor={accentColor}
+        remoteStreamID={remoteStreamID}
+        onAccept={acceptCall}
+        onDecline={declineCall}
+        onEnd={endCall}
+        onToggleMute={handleToggleMute}
+        onToggleSpeaker={handleToggleSpeaker}
+        onToggleCamera={handleToggleCamera}
+      />
     </SafeAreaView>
   );
 }
@@ -657,7 +1077,10 @@ const styles = StyleSheet.create({
   headerCenter: { flex: 1 },
   headerTitle: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
   headerSub: { fontSize: 11, color: '#9CA3AF', marginTop: 1 },
-  onlineDot: { width: 10, height: 10, borderRadius: 5 },
+  callHeaderBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center',
+  },
   permissionBar: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 10,
@@ -697,6 +1120,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.25)', justifyContent: 'center', alignItems: 'center',
   },
   videoLabel: { fontSize: 12, color: '#94A3B8', marginTop: 6, fontWeight: '600' },
+  callMsgWrap: { alignItems: 'center', marginVertical: 8 },
+  callMsgCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#F1F5F9', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+  },
+  callMsgText: { fontSize: 12, fontWeight: '600', color: '#64748B' },
+  callMsgTime: { fontSize: 10, color: '#9CA3AF', marginLeft: 4 },
   docRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   docIcon: { width: 42, height: 42, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   docName: { fontSize: 13, fontWeight: '600', color: '#1E293B' },

@@ -1,5 +1,5 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import React, { useRef } from 'react';
+import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
@@ -9,6 +9,7 @@ import { useAuth } from '../../../providers/src/AuthProvider';
 import { useTheme } from '../../../providers/src/ThemeProvider';
 import { useCart } from '../../../../apps/patient/src/features/medicalStore/context/CartContext';
 import { COLORS, FONT_SIZES, SPACING } from '../constants';
+import InAppNotificationBanner from '../../../../packages/shared/src/components/InAppNotificationBanner';
 
 // Auth Screens
 import LoginScreen from '../../../../apps/patient/src/features/auth/screens/LoginScreen';
@@ -238,11 +239,26 @@ function AuthStack() {
 export default function AppNavigator() {
   const { isAuthenticated, isGuest } = useAuth();
   const { isDarkMode } = useTheme();
+  const navRef = useRef<NavigationContainerRef<any>>(null);
 
   const isLoggedIn = isAuthenticated || isGuest;
 
+  const handleNotifPress = (notif: { title: string; actionType: string; actionId: string }) => {
+    const nav = navRef.current;
+    if (!nav) return;
+    if (notif.actionType === 'appointment' && notif.actionId) {
+      nav.navigate('Appointments', {
+        screen: 'AppointmentChat',
+        params: { appointmentId: notif.actionId, doctorName: notif.title },
+      });
+    } else if (notif.actionType === 'order' && notif.actionId) {
+      nav.navigate('Pharmacy', { screen: 'OrderTracking', params: { orderId: notif.actionId } });
+    }
+  };
+
   return (
     <NavigationContainer
+      ref={navRef}
       theme={{
         dark: isDarkMode,
         colors: {
@@ -256,6 +272,7 @@ export default function AppNavigator() {
       }}
     >
       {isLoggedIn ? <MainTabs /> : <AuthStack />}
+      {isLoggedIn && <InAppNotificationBanner role="patient" onPress={handleNotifPress} />}
     </NavigationContainer>
   );
 }

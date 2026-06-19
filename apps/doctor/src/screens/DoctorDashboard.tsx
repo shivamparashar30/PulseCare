@@ -8,6 +8,7 @@ import DoctorHomeTab from './DoctorHomeTab';
 import AppointmentsTab from './AppointmentsTab';
 import ProfileTab from './ProfileTab';
 import NotificationsTab from './NotificationsTab';
+import InAppNotificationBanner from '../../../../packages/shared/src/components/InAppNotificationBanner';
 
 const Tab = createBottomTabNavigator();
 
@@ -18,6 +19,7 @@ interface Props {
 
 export default function DoctorDashboard({ onLogout, profile }: Props) {
   const [unreadCount, setUnreadCount] = useState(0);
+  const [pendingChat, setPendingChat] = useState<{ appointmentId: string; patientName: string } | null>(null);
   const navRef = useRef<NavigationContainerRef<any>>(null);
 
   const fetchUnread = useCallback(async () => {
@@ -75,7 +77,15 @@ export default function DoctorDashboard({ onLogout, profile }: Props) {
         })}
       >
         <Tab.Screen name="Home">{() => <DoctorHomeTab profile={profile} />}</Tab.Screen>
-        <Tab.Screen name="Appointments">{() => <AppointmentsTab profile={profile} />}</Tab.Screen>
+        <Tab.Screen name="Appointments">
+          {() => (
+            <AppointmentsTab
+              profile={profile}
+              pendingChat={pendingChat}
+              onPendingChatHandled={() => setPendingChat(null)}
+            />
+          )}
+        </Tab.Screen>
         <Tab.Screen
           name="Notifications"
           options={{
@@ -93,6 +103,15 @@ export default function DoctorDashboard({ onLogout, profile }: Props) {
         </Tab.Screen>
         <Tab.Screen name="Profile">{() => <ProfileTab profile={profile} onLogout={onLogout} />}</Tab.Screen>
       </Tab.Navigator>
+      <InAppNotificationBanner
+        role="doctor"
+        onPress={(notif) => {
+          if (notif.actionType === 'appointment' && notif.actionId) {
+            setPendingChat({ appointmentId: notif.actionId, patientName: notif.title });
+            navRef.current?.navigate('Appointments');
+          }
+        }}
+      />
     </NavigationContainer>
   );
 }

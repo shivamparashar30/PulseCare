@@ -21,6 +21,8 @@
   },
   "packageManager": "pnpm@9.1.0",
   "dependencies": {
-    "expo-av": "^16.0.8"
+    "expo-av": "^16.0.8",
+    "text-encoding": "^0.7.0",
+    "zego-express-engine-reactnative": "^3.22.0"
   }
 }

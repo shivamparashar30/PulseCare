@@ -13,8 +13,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RouteProp } from '@react-navigation/native';
 
 import { COLORS, FONT_SIZES, SPACING, BORDER_RADIUS, RAZORPAY_KEY } from '../../../../../../packages/core/src/constants';
 import { useTheme } from '../../../../../../packages/providers/src/ThemeProvider';
@@ -39,6 +40,7 @@ const STATUS_CONFIG: Record<string, { bg: string; text: string; icon: string; la
 
 export default function AppointmentsListScreen() {
   const navigation = useNavigation<Nav>();
+  const route = useRoute<RouteProp<AppointmentStackParamList, 'AppointmentsList'>>();
   const { colors } = useTheme();
   const channelRef = useRef<any>(null);
   const [appointments, setAppointments] = useState<any[]>([]);
@@ -48,9 +50,25 @@ export default function AppointmentsListScreen() {
   const [activeTab, setActiveTab] = useState('Pending');
   const [sectionTab, setSectionTab] = useState<typeof SECTION_TABS[number]>('Doctors');
   const [payingId, setPayingId] = useState<string | null>(null);
+  const [highlightBookingId, setHighlightBookingId] = useState<string | null>(null);
   const [paymentModal, setPaymentModal] = useState<{ visible: boolean; appt: any; fee: number; docName: string }>({
     visible: false, appt: null, fee: 0, docName: '',
   });
+
+  // Handle deep-link from notification: switch to Lab Tests tab and highlight booking
+  useEffect(() => {
+    const labBookingId = route.params?.labBookingId;
+    if (labBookingId && labBookings.length > 0) {
+      setSectionTab('Lab Tests');
+      // Auto-detect the booking's status tab
+      const booking = labBookings.find(b => b.id === labBookingId);
+      if (booking) setActiveTab(booking.status);
+      setHighlightBookingId(labBookingId);
+      const timer = setTimeout(() => setHighlightBookingId(null), 3000);
+      navigation.setParams({ labBookingId: undefined } as any);
+      return () => clearTimeout(timer);
+    }
+  }, [route.params?.labBookingId, labBookings]);
 
   const loadAppointments = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -247,8 +265,10 @@ export default function AppointmentsListScreen() {
     const isApproved = item.status === 'Approved';
     const isHome = item.collection_type === 'home';
 
+    const isHighlighted = highlightBookingId === item.id;
+
     return (
-      <View style={[styles.card, { backgroundColor: colors.card }]}>
+      <View style={[styles.card, { backgroundColor: colors.card }, isHighlighted && { borderColor: '#7C3AED', borderWidth: 2, backgroundColor: '#F5F3FF' }]}>
         <View style={styles.cardHeader}>
           <View style={styles.doctorRow}>
             <View style={[styles.labIcon, { backgroundColor: '#EDE9FE' }]}>

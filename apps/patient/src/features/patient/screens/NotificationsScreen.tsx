@@ -100,7 +100,6 @@ export default function NotificationsScreen({ navigation }: any) {
 
     // Deep link based on action_type
     if (item.actionType === 'appointment' && item.actionId) {
-      // Navigate to Appointments tab → AppointmentDetail
       const parent = navigation.getParent?.();
       if (parent) {
         parent.navigate('Appointments', { screen: 'AppointmentDetail', params: { appointmentId: item.actionId } });
@@ -109,6 +108,11 @@ export default function NotificationsScreen({ navigation }: any) {
       const parent = navigation.getParent?.();
       if (parent) {
         parent.navigate('Pharmacy', { screen: 'OrderTracking', params: { orderId: item.actionId } });
+      }
+    } else if (item.actionType === 'lab_booking' && item.actionId) {
+      const parent = navigation.getParent?.();
+      if (parent) {
+        parent.navigate('Appointments', { screen: 'AppointmentsList', params: { labBookingId: item.actionId } });
       }
     }
   };

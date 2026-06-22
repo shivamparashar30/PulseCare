@@ -248,11 +248,16 @@ export default function AppNavigator() {
     if (!nav) return;
     if (notif.actionType === 'appointment' && notif.actionId) {
       nav.navigate('Appointments', {
-        screen: 'AppointmentChat',
-        params: { appointmentId: notif.actionId, doctorName: notif.title },
+        screen: 'AppointmentDetail',
+        params: { appointmentId: notif.actionId },
       });
     } else if (notif.actionType === 'order' && notif.actionId) {
       nav.navigate('Pharmacy', { screen: 'OrderTracking', params: { orderId: notif.actionId } });
+    } else if (notif.actionType === 'lab_booking' && notif.actionId) {
+      nav.navigate('Appointments', {
+        screen: 'AppointmentsList',
+        params: { labBookingId: notif.actionId },
+      });
     }
   };
 

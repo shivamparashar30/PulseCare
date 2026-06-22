@@ -281,7 +281,7 @@ export type PharmacyStackParamList = {
 };
 
 export type AppointmentStackParamList = {
-  AppointmentsList: undefined;
+  AppointmentsList: { labBookingId?: string } | undefined;
   AppointmentDetail: { appointmentId: string };
   AppointmentChat: { appointmentId: string; doctorName: string; isDoctor?: boolean };
   LabBookings: undefined;

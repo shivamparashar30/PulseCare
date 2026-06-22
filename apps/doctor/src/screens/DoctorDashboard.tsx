@@ -19,7 +19,8 @@ interface Props {
 
 export default function DoctorDashboard({ onLogout, profile }: Props) {
   const [unreadCount, setUnreadCount] = useState(0);
-  const [pendingChat, setPendingChat] = useState<{ appointmentId: string; patientName: string } | null>(null);
+  const [pendingApptId, setPendingApptId] = useState<string | null>(null);
+  const [apptFilter, setApptFilter] = useState<string | null>(null);
   const navRef = useRef<NavigationContainerRef<any>>(null);
 
   const fetchUnread = useCallback(async () => {
@@ -55,7 +56,8 @@ export default function DoctorDashboard({ onLogout, profile }: Props) {
   const onNotifRead = useCallback(() => { fetchUnread(); }, [fetchUnread]);
 
   // Deep link: navigate to Appointments tab from notification
-  const navigateToAppointments = useCallback(() => {
+  const navigateToAppointments = useCallback((filter?: string) => {
+    if (filter) setApptFilter(filter);
     navRef.current?.navigate('Appointments');
   }, []);
 
@@ -76,13 +78,15 @@ export default function DoctorDashboard({ onLogout, profile }: Props) {
           },
         })}
       >
-        <Tab.Screen name="Home">{() => <DoctorHomeTab profile={profile} />}</Tab.Screen>
+        <Tab.Screen name="Home">{() => <DoctorHomeTab profile={profile} onNavigateToAppointments={navigateToAppointments} />}</Tab.Screen>
         <Tab.Screen name="Appointments">
           {() => (
             <AppointmentsTab
               profile={profile}
-              pendingChat={pendingChat}
-              onPendingChatHandled={() => setPendingChat(null)}
+              pendingApptId={pendingApptId}
+              onPendingApptHandled={() => setPendingApptId(null)}
+              initialFilter={apptFilter}
+              onInitialFilterHandled={() => setApptFilter(null)}
             />
           )}
         </Tab.Screen>
@@ -107,7 +111,7 @@ export default function DoctorDashboard({ onLogout, profile }: Props) {
         role="doctor"
         onPress={(notif) => {
           if (notif.actionType === 'appointment' && notif.actionId) {
-            setPendingChat({ appointmentId: notif.actionId, patientName: notif.title });
+            setPendingApptId(notif.actionId);
             navRef.current?.navigate('Appointments');
           }
         }}

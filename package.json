@@ -14,14 +14,17 @@
     "android:medical-store": "pnpm --filter @healthcare/medical-store android",
     "android:diagnostics": "pnpm --filter @healthcare/diagnostics android",
     "typecheck": "turbo typecheck",
-    "clean": "turbo clean && rm -rf node_modules"
+    "clean": "turbo clean && rm -rf node_modules",
+    "build:patient": "cd apps/patient && eas build --platform android --profile preview",
+    "build:doctor": "cd apps/doctor && eas build --platform android --profile preview",
+    "build:medical-store": "cd apps/medicalStore && eas build --platform android --profile preview",
+    "build:diagnostics": "cd apps/diagnostics && eas build --platform android --profile preview"
   },
   "devDependencies": {
     "turbo": "^2.0.0"
   },
   "packageManager": "pnpm@9.1.0",
   "dependencies": {
-    "expo-av": "^16.0.8",
     "text-encoding": "^0.7.0",
     "zego-express-engine-reactnative": "^3.22.0"
   }

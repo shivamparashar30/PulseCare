@@ -76,6 +76,28 @@ export default function StoreOrdersTab({ profile }: Props) {
 
   useEffect(() => { load(); }, [load]);
 
+  // Realtime: auto-update when orders change
+  useEffect(() => {
+    const storeId = profile?.id;
+    if (!storeId) return;
+    const channel = supabase
+      .channel('store-orders-realtime')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'orders',
+        filter: `store_id=eq.${storeId}`,
+      }, () => { load(); })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'orders',
+        filter: `store_id=eq.${storeId}`,
+      }, () => { load(); })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [profile?.id, load]);
+
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
   const filtered = useMemo(() => {

@@ -99,6 +99,25 @@ export default function MyOrdersScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Realtime: auto-update when any of patient's orders change
+  useEffect(() => {
+    let channel: any = null;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      channel = supabase
+        .channel('patient-my-orders-realtime')
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `user_id=eq.${user.id}`,
+        }, () => { load(); })
+        .subscribe();
+    })();
+    return () => { if (channel) supabase.removeChannel(channel); };
+  }, [load]);
+
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
   const filtered = useMemo(() => {

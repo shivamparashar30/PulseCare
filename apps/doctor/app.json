@@ -1,19 +1,42 @@
 {
   "expo": {
-    "name": "Healthcare Doctor",
+    "name": "PulseCare Doctor",
     "slug": "healthcare-doctor",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "healthcare-doctor",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.healthcare.doctor"
     },
     "android": {
-      "package": "com.healthcare.doctor"
-    }
+      "package": "com.healthcare.doctor",
+      "adaptiveIcon": {
+        "backgroundColor": "#059669"
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECORD_AUDIO",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
+    },
+    "splash": {
+      "backgroundColor": "#FFFFFF",
+      "resizeMode": "contain"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "e3c09b37-1e6e-4a88-bdc2-d34e9a5f9c72"
+      }
+    },
+    "owner": "shivam330"
   }
 }

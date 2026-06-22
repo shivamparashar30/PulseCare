@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+
+    <!-- Heart/Pulse icon -->
+    <!-- Rounded square background -->
+    <path
+        android:fillColor="#1A73E8"
+        android:pathData="M30,50 C30,38.95 38.95,30 50,30 L150,30 C161.05,30 170,38.95 170,50 L170,150 C170,161.05 161.05,170 150,170 L50,170 C38.95,170 30,161.05 30,150 Z"/>
+
+    <!-- Medical cross -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M85,70 L115,70 L115,85 L130,85 L130,115 L115,115 L115,130 L85,130 L85,115 L70,115 L70,85 L85,85 Z"/>
+
+    <!-- Pulse/heartbeat line -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.5"
+        android:pathData="M40,155 L65,155 L75,140 L85,165 L95,135 L105,160 L110,155 L160,155"/>
+</vector>

@@ -1,19 +1,41 @@
 {
   "expo": {
-    "name": "Healthcare Medical Store",
+    "name": "PulseCare Store",
     "slug": "healthcare-medical-store",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "healthcare-store",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.healthcare.store"
     },
     "android": {
-      "package": "com.healthcare.store"
-    }
+      "package": "com.healthcare.store",
+      "adaptiveIcon": {
+        "backgroundColor": "#F59E0B"
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
+    },
+    "splash": {
+      "backgroundColor": "#FFFFFF",
+      "resizeMode": "contain"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "1ff68abe-5355-45e8-9aa8-ed4225562b08"
+      }
+    },
+    "owner": "shivam330"
   }
 }

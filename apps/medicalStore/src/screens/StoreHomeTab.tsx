@@ -48,6 +48,22 @@ export default function StoreHomeTab({ profile }: Props) {
 
   useEffect(() => { load(); }, [load]);
 
+  // Realtime: auto-update dashboard when orders change
+  useEffect(() => {
+    const storeId = profile?.id;
+    if (!storeId) return;
+    const channel = supabase
+      .channel('store-home-orders')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'orders',
+        filter: `store_id=eq.${storeId}`,
+      }, () => { load(); })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [profile?.id, load]);
+
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
   const formatDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });

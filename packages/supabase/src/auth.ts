@@ -120,14 +120,13 @@ export async function updateProfile(userId: string, updates: { full_name?: strin
   return data;
 }
 
-export async function uploadAvatar(userId: string, uri: string) {
+export async function uploadAvatar(userId: string, base64Data: string) {
   const fileName = `${userId}/${Date.now()}.jpg`;
-  const response = await fetch(uri);
-  const blob = await response.blob();
+  const bytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
 
   const { error: uploadError } = await supabase.storage
     .from('avatars')
-    .upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
+    .upload(fileName, bytes, { contentType: 'image/jpeg', upsert: true });
 
   if (uploadError) throw uploadError;
 

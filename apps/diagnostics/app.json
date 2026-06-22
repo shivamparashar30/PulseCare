@@ -1,19 +1,41 @@
 {
   "expo": {
-    "name": "Healthcare Diagnostics",
+    "name": "PulseCare Diagnostics",
     "slug": "healthcare-diagnostics",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "healthcare-diagnostics",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.healthcare.diagnostics"
     },
     "android": {
-      "package": "com.healthcare.diagnostics"
-    }
+      "package": "com.healthcare.diagnostics",
+      "adaptiveIcon": {
+        "backgroundColor": "#7C3AED"
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
+    },
+    "splash": {
+      "backgroundColor": "#FFFFFF",
+      "resizeMode": "contain"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "6ddf4b37-c022-4e51-a869-7a1f6bbc6189"
+      }
+    },
+    "owner": "shivam330"
   }
 }

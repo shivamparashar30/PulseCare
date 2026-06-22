@@ -734,13 +734,17 @@ function ChatScreenInner({ entityType, entityId, otherPersonName, isBusiness, ac
     ZegoCallService.setCamera(!next); // enableCamera is the opposite of isCameraOff
   };
 
-  const canType = entityActive && (isBusiness || customerCanChat);
+  const canType = isBusiness ? (entityActive || customerCanChat) : customerCanChat;
 
   const permLabel = entityType === 'appointment' ? 'Allow patient to reply' : 'Allow customer to reply';
   const permSubEnabled = entityType === 'appointment' ? 'Patient can send messages' : 'Customer can send messages';
   const permSubDisabled = 'Only you can send messages';
   const disabledLabel = !entityActive
-    ? 'This conversation has ended'
+    ? entityType === 'appointment'
+      ? 'This conversation has ended. Doctor can re-enable chat if needed.'
+      : entityType === 'order'
+        ? 'This conversation has ended. Store can re-enable chat if needed.'
+        : 'This conversation has ended. Center can re-enable chat if needed.'
     : entityType === 'appointment'
       ? 'Doctor has not enabled replies yet'
       : entityType === 'order'
@@ -918,11 +922,11 @@ function ChatScreenInner({ entityType, entityId, otherPersonName, isBusiness, ac
       </View>
 
       {/* Business toggle for customer permissions */}
-      {isBusiness && entityActive && (
+      {isBusiness && (
         <View style={styles.permissionBar}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.permLabel}>{permLabel}</Text>
-            <Text style={styles.permSub}>{customerCanChat ? permSubEnabled : permSubDisabled}</Text>
+            <Text style={styles.permLabel}>{!entityActive ? 'Re-enable chat' : permLabel}</Text>
+            <Text style={styles.permSub}>{customerCanChat ? permSubEnabled : (!entityActive ? 'Chat ended — toggle to reopen' : permSubDisabled)}</Text>
           </View>
           <Switch
             value={customerCanChat}

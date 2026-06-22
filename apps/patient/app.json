@@ -1,22 +1,45 @@
 {
   "expo": {
-    "name": "Medico",
-    "slug": "medico-healthcare",
+    "name": "PulseCare",
+    "slug": "pulsecare",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "medico",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.medico.healthcare"
     },
     "android": {
-      "package": "com.medico.healthcare"
+      "package": "com.medico.healthcare",
+      "adaptiveIcon": {
+        "backgroundColor": "#1A73E8"
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECORD_AUDIO",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
+    },
+    "splash": {
+      "backgroundColor": "#FFFFFF",
+      "resizeMode": "contain"
     },
     "web": {
       "bundler": "metro"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "fe4e9952-bed4-4f7a-b360-26aefaa26b35"
+      }
+    },
+    "owner": "shivam330"
   }
 }

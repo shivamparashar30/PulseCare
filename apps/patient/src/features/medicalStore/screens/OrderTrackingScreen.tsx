@@ -80,11 +80,20 @@ export default function OrderTrackingScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Auto-refresh every 30s
+  // Realtime: instant update when order status changes
   useEffect(() => {
-    const interval = setInterval(() => { load(); }, 30000);
-    return () => clearInterval(interval);
-  }, [load]);
+    if (!orderId) return;
+    const channel = supabase
+      .channel(`patient-order-tracking-${orderId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'orders',
+        filter: `id=eq.${orderId}`,
+      }, () => { load(); })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [orderId, load]);
 
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 

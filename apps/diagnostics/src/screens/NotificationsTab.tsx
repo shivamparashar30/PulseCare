@@ -22,9 +22,13 @@ const ICON_CONFIG: Record<string, { icon: string; bg: string; color: string }> =
   general: { icon: 'notifications', bg: '#F39C1220', color: '#F39C12' },
 };
 
-interface Props { profile: any; }
+interface Props {
+  profile: any;
+  onNotifRead?: () => void;
+  onNavigateToBookings?: () => void;
+}
 
-export default function NotificationsTab({ profile }: Props) {
+export default function NotificationsTab({ profile, onNotifRead, onNavigateToBookings }: Props) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -71,14 +75,23 @@ export default function NotificationsTab({ profile }: Props) {
     setRefreshing(false);
   };
 
-  const markRead = async (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-    await notificationsApi.markRead(id);
+  const handleNotifPress = async (item: Notification) => {
+    if (!item.isRead) {
+      setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, isRead: true } : n));
+      await notificationsApi.markRead(item.id);
+      onNotifRead?.();
+    }
+    if (item.actionType === 'lab_booking' && onNavigateToBookings) {
+      onNavigateToBookings();
+    }
   };
 
   const markAllRead = async () => {
     setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-    if (userId) await notificationsApi.markAllRead(userId, 'diagnostics');
+    if (userId) {
+      await notificationsApi.markAllRead(userId, 'diagnostics');
+      onNotifRead?.();
+    }
   };
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
@@ -88,7 +101,7 @@ export default function NotificationsTab({ profile }: Props) {
     return (
       <TouchableOpacity
         style={[styles.card, !item.isRead && styles.cardUnread]}
-        onPress={() => markRead(item.id)}
+        onPress={() => handleNotifPress(item)}
         activeOpacity={0.7}
       >
         <View style={[styles.iconBox, { backgroundColor: cfg.bg }]}>

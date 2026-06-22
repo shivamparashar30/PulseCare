@@ -7,10 +7,11 @@ import {
   StyleSheet,
   Alert,
   Switch,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -57,25 +58,31 @@ export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const { colors, isDarkMode, toggleTheme } = useTheme();
   const [stats, setStats] = useState({ appointments: 0, labTests: 0, orders: 0 });
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   const loadStats = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) return;
     const uid = session.user.id;
 
-    const [appts, labs, ords] = await Promise.all([
+    const [appts, labs, ords, profileRes] = await Promise.all([
       supabase.from('appointments').select('id', { count: 'exact', head: true }).eq('patient_id', uid),
       supabase.from('lab_bookings').select('id', { count: 'exact', head: true }).eq('patient_id', uid),
       supabase.from('orders').select('id', { count: 'exact', head: true }).eq('patient_id', uid),
+      supabase.from('profiles').select('avatar_url').eq('id', uid).single(),
     ]);
     setStats({
       appointments: appts.count ?? 0,
       labTests: labs.count ?? 0,
       orders: ords.count ?? 0,
     });
+    if (profileRes.data?.avatar_url) setAvatarUrl(profileRes.data.avatar_url);
   }, []);
 
   useEffect(() => { loadStats(); }, [loadStats]);
+
+  // Reload when coming back from EditProfile (avatar may have changed)
+  useFocusEffect(useCallback(() => { loadStats(); }, [loadStats]));
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
@@ -98,9 +105,13 @@ export default function ProfileScreen() {
         >
           <View style={styles.heroContent}>
             <View style={styles.avatarRing}>
-              <View style={styles.avatarInner}>
-                <Text style={styles.avatarText}>{initials}</Text>
-              </View>
+              {avatarUrl && !avatarUrl.includes('randomuser.me') ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatarImg} />
+              ) : (
+                <View style={styles.avatarInner}>
+                  <Text style={styles.avatarText}>{initials}</Text>
+                </View>
+              )}
             </View>
             <View style={styles.heroInfo}>
               <Text style={styles.heroName} numberOfLines={1}>{user?.name || 'Guest User'}</Text>
@@ -237,6 +248,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.35)',
     padding: 3,
+  },
+  avatarImg: {
+    flex: 1,
+    borderRadius: 32,
   },
   avatarInner: {
     flex: 1,

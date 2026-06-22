@@ -54,6 +54,21 @@ export default function AppointmentDetailScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Realtime: auto-update when appointment status changes
+  useEffect(() => {
+    if (!appointmentId) return;
+    const channel = supabase
+      .channel(`patient-appt-detail-${appointmentId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'appointments',
+        filter: `id=eq.${appointmentId}`,
+      }, () => { load(); })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [appointmentId, load]);
+
   if (loading) {
     return <View style={[styles.center, { backgroundColor: colors.background }]}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
   }

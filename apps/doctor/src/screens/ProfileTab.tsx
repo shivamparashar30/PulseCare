@@ -5,7 +5,20 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../supabase';
+
+const BLUE = '#2563EB';
+
+const ALL_TIME_SLOTS = [
+  '07:00 AM','07:30 AM','08:00 AM','08:30 AM',
+  '09:00 AM','09:30 AM','10:00 AM','10:30 AM','11:00 AM','11:30 AM',
+  '12:00 PM','12:30 PM','01:00 PM','01:30 PM',
+  '02:00 PM','02:30 PM','03:00 PM','03:30 PM',
+  '04:00 PM','04:30 PM','05:00 PM','05:30 PM',
+  '06:00 PM','06:30 PM','07:00 PM','07:30 PM',
+  '08:00 PM','08:30 PM','09:00 PM',
+];
 
 interface Props {
   profile: any;
@@ -17,12 +30,18 @@ export default function ProfileTab({ profile, onLogout }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   // Editable fields
   const [hospital, setHospital] = useState('');
   const [consultationFee, setConsultationFee] = useState('');
   const [about, setAbout] = useState('');
   const [phone, setPhone] = useState('');
+  const [availableStartTime, setAvailableStartTime] = useState('09:00 AM');
+  const [availableEndTime, setAvailableEndTime] = useState('06:00 PM');
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!profile?.id) return;
@@ -32,13 +51,57 @@ export default function ProfileTab({ profile, onLogout }: Props) {
       setHospital(data.hospital || '');
       setConsultationFee(data.consultation_fee?.toString() || '');
       setAbout(data.about || '');
+      setAvailableStartTime(data.available_start_time || '09:00 AM');
+      setAvailableEndTime(data.available_end_time || '06:00 PM');
     }
     setPhone(profile.phone || '');
+    setAvatarUrl(profile.avatar_url || null);
   }, [profile?.id]);
 
   useEffect(() => { load(); }, [load]);
 
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
+
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Please allow access to your photo library.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+      base64: true,
+    });
+
+    if (result.canceled || !result.assets[0]?.base64) return;
+
+    setUploadingPhoto(true);
+    try {
+      const base64 = result.assets[0].base64;
+      const fileName = `${profile.id}/${Date.now()}.jpg`;
+      const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, bytes, { contentType: 'image/jpeg', upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(fileName);
+
+      await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', profile.id);
+      setAvatarUrl(publicUrl);
+      Alert.alert('Success', 'Profile photo updated!');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to upload photo.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -49,6 +112,8 @@ export default function ProfileTab({ profile, onLogout }: Props) {
           hospital,
           consultation_fee: consultationFee ? Number(consultationFee) : null,
           about,
+          available_start_time: availableStartTime,
+          available_end_time: availableEndTime,
         })
         .eq('id', profile.id);
 
@@ -68,7 +133,7 @@ export default function ProfileTab({ profile, onLogout }: Props) {
     }
   };
 
-  const avatarUrl = profile?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.full_name || 'Dr')}&background=2563EB&color=fff&size=200`;
+  const displayAvatarUrl = avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.full_name || 'Dr')}&background=2563EB&color=fff&size=200`;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -78,7 +143,19 @@ export default function ProfileTab({ profile, onLogout }: Props) {
       >
         {/* Profile Header */}
         <View style={styles.header}>
-          <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+          <TouchableOpacity onPress={pickImage} disabled={uploadingPhoto} activeOpacity={0.8}>
+            <View style={styles.avatarWrap}>
+              <Image source={{ uri: displayAvatarUrl }} style={styles.avatar} />
+              <View style={[styles.cameraOverlay, { backgroundColor: BLUE }]}>
+                {uploadingPhoto ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Ionicons name="camera" size={14} color="#fff" />
+                )}
+              </View>
+            </View>
+          </TouchableOpacity>
+          <Text style={styles.tapText}>{uploadingPhoto ? 'Uploading...' : 'Tap to change photo'}</Text>
           <Text style={styles.name}>{profile?.full_name || 'Doctor'}</Text>
           <Text style={styles.spec}>{doctorProfile?.specialization || 'Doctor'}</Text>
           <View style={styles.verifiedBadge}>
@@ -106,11 +183,13 @@ export default function ProfileTab({ profile, onLogout }: Props) {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Profile Information</Text>
             {!editing ? (
-              <TouchableOpacity onPress={() => setEditing(true)}>
+              <TouchableOpacity onPress={() => setEditing(true)} style={styles.editBtnWrap}>
+                <Ionicons name="create-outline" size={16} color={BLUE} />
                 <Text style={styles.editBtn}>Edit</Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity onPress={() => { setEditing(false); load(); }}>
+              <TouchableOpacity onPress={() => { setEditing(false); load(); }} style={styles.editBtnWrap}>
+                <Ionicons name="close-outline" size={16} color="#DC2626" />
                 <Text style={[styles.editBtn, { color: '#DC2626' }]}>Cancel</Text>
               </TouchableOpacity>
             )}
@@ -124,6 +203,46 @@ export default function ProfileTab({ profile, onLogout }: Props) {
           <InfoRow icon="cash-outline" label="Consultation Fee" value={consultationFee} editable={editing} onChangeText={setConsultationFee} prefix="Rs. " keyboardType="numeric" />
           <InfoRow icon="globe-outline" label="Languages" value={doctorProfile?.languages?.join(', ') || '-'} />
           <InfoRow icon="calendar-outline" label="Available Days" value={doctorProfile?.available_days?.join(', ') || '-'} />
+
+          {/* Available Time Slots */}
+          <View style={styles.infoRow}>
+            <Ionicons name="time-outline" size={18} color="#64748B" />
+            <Text style={styles.infoLabel}>Available Hours</Text>
+            {editing ? (
+              <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end', gap: 6, alignItems: 'center' }}>
+                <TouchableOpacity
+                  style={{ backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
+                  onPress={() => setShowStartPicker(!showStartPicker)}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: BLUE }}>{availableStartTime}</Text>
+                </TouchableOpacity>
+                <Text style={{ color: '#64748B', fontWeight: '600' }}>to</Text>
+                <TouchableOpacity
+                  style={{ backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
+                  onPress={() => setShowEndPicker(!showEndPicker)}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: BLUE }}>{availableEndTime}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <Text style={styles.infoValue}>{availableStartTime} - {availableEndTime}</Text>
+            )}
+          </View>
+
+          {editing && showStartPicker && (
+            <TimePicker
+              selected={availableStartTime}
+              onSelect={(t) => { setAvailableStartTime(t); setShowStartPicker(false); }}
+              label="Select Start Time"
+            />
+          )}
+          {editing && showEndPicker && (
+            <TimePicker
+              selected={availableEndTime}
+              onSelect={(t) => { setAvailableEndTime(t); setShowEndPicker(false); }}
+              label="Select End Time"
+            />
+          )}
 
           {editing && (
             <>
@@ -167,6 +286,30 @@ export default function ProfileTab({ profile, onLogout }: Props) {
   );
 }
 
+function TimePicker({ selected, onSelect, label }: { selected: string; onSelect: (t: string) => void; label: string }) {
+  return (
+    <View style={{ marginBottom: 8 }}>
+      <Text style={{ fontSize: 12, fontWeight: '600', color: '#64748B', marginBottom: 6 }}>{label}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          {ALL_TIME_SLOTS.map(t => (
+            <TouchableOpacity
+              key={t}
+              onPress={() => onSelect(t)}
+              style={{
+                paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+                backgroundColor: selected === t ? BLUE : '#F1F5F9',
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '600', color: selected === t ? '#fff' : '#374151' }}>{t}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
 function InfoRow({ icon, label, value, editable, onChangeText, prefix, keyboardType }: {
   icon: string; label: string; value: string;
   editable?: boolean; onChangeText?: (t: string) => void;
@@ -196,9 +339,17 @@ function InfoRow({ icon, label, value, editable, onChangeText, prefix, keyboardT
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   header: { alignItems: 'center', paddingTop: 24, paddingBottom: 16 },
-  avatar: { width: 80, height: 80, borderRadius: 40, borderWidth: 3, borderColor: '#2563EB', marginBottom: 12 },
+  avatarWrap: { position: 'relative' },
+  avatar: { width: 88, height: 88, borderRadius: 44, borderWidth: 3, borderColor: BLUE },
+  cameraOverlay: {
+    position: 'absolute', bottom: 0, right: 0,
+    width: 30, height: 30, borderRadius: 15,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: '#fff',
+  },
+  tapText: { fontSize: 12, color: BLUE, fontWeight: '600', marginTop: 6, marginBottom: 8 },
   name: { fontSize: 20, fontWeight: '800', color: '#1E293B' },
-  spec: { fontSize: 14, color: '#2563EB', fontWeight: '600', marginTop: 2 },
+  spec: { fontSize: 14, color: BLUE, fontWeight: '600', marginTop: 2 },
   verifiedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8, backgroundColor: '#ECFDF5', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
   verifiedText: { fontSize: 12, fontWeight: '600', color: '#059669' },
   statsRow: { flexDirection: 'row', marginHorizontal: 20, backgroundColor: '#fff', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 16 },
@@ -208,17 +359,18 @@ const styles = StyleSheet.create({
   section: { marginHorizontal: 20, backgroundColor: '#fff', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E5E7EB' },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
-  editBtn: { fontSize: 14, fontWeight: '600', color: '#2563EB' },
+  editBtnWrap: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: '#EFF6FF' },
+  editBtn: { fontSize: 14, fontWeight: '600', color: BLUE },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   infoLabel: { fontSize: 13, color: '#64748B', width: 110 },
   infoValue: { flex: 1, fontSize: 14, color: '#1E293B', fontWeight: '500', textAlign: 'right' },
   infoInputWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
   infoPrefix: { fontSize: 14, color: '#64748B' },
-  infoInput: { fontSize: 14, color: '#1E293B', fontWeight: '500', textAlign: 'right', borderBottomWidth: 1, borderBottomColor: '#2563EB', paddingVertical: 2, minWidth: 80 },
+  infoInput: { fontSize: 14, color: '#1E293B', fontWeight: '500', textAlign: 'right', borderBottomWidth: 1, borderBottomColor: BLUE, paddingVertical: 2, minWidth: 80 },
   fieldLabel: { fontSize: 13, fontWeight: '600', color: '#64748B', marginTop: 12, marginBottom: 4 },
   aboutInput: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, padding: 12, fontSize: 14, color: '#1E293B', minHeight: 80, textAlignVertical: 'top' },
   aboutText: { fontSize: 14, color: '#374151', lineHeight: 22 },
-  saveBtn: { backgroundColor: '#2563EB', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 16 },
+  saveBtn: { backgroundColor: BLUE, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 16 },
   saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 20, backgroundColor: '#FEE2E2', borderRadius: 12, paddingVertical: 14 },
   logoutText: { fontSize: 15, fontWeight: '700', color: '#DC2626' },

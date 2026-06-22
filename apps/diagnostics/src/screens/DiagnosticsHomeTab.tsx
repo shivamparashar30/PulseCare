@@ -47,6 +47,22 @@ export default function DiagnosticsHomeTab({ profile }: Props) {
 
   useEffect(() => { load(); }, [load]);
 
+  // Realtime: auto-update when lab bookings change
+  useEffect(() => {
+    const userId = profile?.id;
+    if (!userId) return;
+    const channel = supabase
+      .channel('diagnostics-home-bookings')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'lab_bookings',
+        filter: `diagnostics_center_id=eq.${userId}`,
+      }, () => { load(); })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [profile?.id, load]);
+
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
   const statusColor = (s: string) => STATUS_COLORS[s] || '#DC2626';

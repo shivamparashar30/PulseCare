@@ -22,6 +22,10 @@ import { useTheme } from '../../../../../../packages/providers/src/ThemeProvider
 import { RazorpayWebCheckout } from '../../../../../../packages/shared/src/components';
 import { supabase } from '../../../../../../packages/supabase/src/client';
 
+// Lazy import
+let Location: any = null;
+try { Location = require('expo-location'); } catch {}
+
 type Nav = NativeStackNavigationProp<PharmacyStackParamList, 'Checkout'>;
 
 export default function CheckoutScreen() {
@@ -34,8 +38,9 @@ export default function CheckoutScreen() {
   const [addresses, setAddresses] = useState<any[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<any>(null);
   const [showAddAddress, setShowAddAddress] = useState(false);
-  const [newAddr, setNewAddr] = useState({ label: 'Home', line1: '', line2: '', city: '', state: '', pincode: '' });
+  const [newAddr, setNewAddr] = useState({ label: 'Home', line1: '', line2: '', city: '', state: '', pincode: '', latitude: null as number | null, longitude: null as number | null });
   const [userName, setUserName] = useState('');
+  const [detectingLoc, setDetectingLoc] = useState(false);
 
   useEffect(() => {
     loadAddresses();
@@ -60,6 +65,30 @@ export default function CheckoutScreen() {
     }
   };
 
+  const detectLocation = async () => {
+    if (!Location) { Alert.alert('Unavailable', 'Location services are not available.'); return; }
+    setDetectingLoc(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') { Alert.alert('Permission Denied', 'Enable location in settings.'); setDetectingLoc(false); return; }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const lat = loc.coords.latitude;
+      const lng = loc.coords.longitude;
+      const updated = { ...newAddr, latitude: lat, longitude: lng };
+      try {
+        const [geo] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+        if (geo) {
+          if (geo.city) updated.city = geo.city;
+          if (geo.region) updated.state = geo.region;
+          if (geo.postalCode) updated.pincode = geo.postalCode;
+          if (geo.street || geo.name) updated.line1 = [geo.name, geo.street].filter(Boolean).join(', ');
+        }
+      } catch {}
+      setNewAddr(updated);
+    } catch (e: any) { Alert.alert('Error', e.message || 'Failed to detect location'); }
+    finally { setDetectingLoc(false); }
+  };
+
   const handleSaveAddress = async () => {
     if (!newAddr.line1 || !newAddr.city || !newAddr.state || !newAddr.pincode) {
       Alert.alert('Missing Fields', 'Please fill in all required address fields.');
@@ -78,6 +107,8 @@ export default function CheckoutScreen() {
         city: newAddr.city,
         state: newAddr.state,
         pincode: newAddr.pincode,
+        latitude: newAddr.latitude,
+        longitude: newAddr.longitude,
         is_default: addresses.length === 0,
       })
       .select()
@@ -85,7 +116,7 @@ export default function CheckoutScreen() {
 
     if (error) { Alert.alert('Error', error.message); return; }
     setShowAddAddress(false);
-    setNewAddr({ label: 'Home', line1: '', line2: '', city: '', state: '', pincode: '' });
+    setNewAddr({ label: 'Home', line1: '', line2: '', city: '', state: '', pincode: '', latitude: null, longitude: null });
     loadAddresses();
     if (data) setSelectedAddress(data);
   };
@@ -361,6 +392,29 @@ export default function CheckoutScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+
+            {/* Detect Location */}
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderColor: COLORS.primary, borderStyle: 'dashed', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, marginBottom: SPACING.sm, backgroundColor: COLORS.primary + '08' }}
+              onPress={detectLocation}
+              disabled={detectingLoc}
+            >
+              {detectingLoc ? (
+                <ActivityIndicator size="small" color={COLORS.primary} />
+              ) : (
+                <Ionicons name="navigate" size={18} color={COLORS.primary} />
+              )}
+              <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: COLORS.primary }}>
+                {detectingLoc ? 'Detecting...' : newAddr.latitude ? 'Re-detect Location' : 'Use My Current Location'}
+              </Text>
+            </TouchableOpacity>
+
+            {newAddr.latitude != null && newAddr.longitude != null && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#ECFDF5', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginBottom: SPACING.sm, alignSelf: 'flex-start' }}>
+                <Ionicons name="checkmark-circle" size={14} color="#059669" />
+                <Text style={{ fontSize: 11, color: '#059669', fontWeight: '600' }}>Location: {newAddr.latitude.toFixed(4)}, {newAddr.longitude.toFixed(4)}</Text>
+              </View>
+            )}
 
             <TextInput
               style={[styles.input, { color: colors.textPrimary, borderColor: colors.border }]}

@@ -9,6 +9,7 @@ import { StyleSheet } from 'react-native';
 import { AuthProvider } from '../../packages/providers/src/AuthProvider';
 import { CartProvider } from './src/features/medicalStore/context/CartContext';
 import { ThemeProvider, useTheme } from '../../packages/providers/src/ThemeProvider';
+import { UserLocationProvider } from '../../packages/providers/src/UserLocationProvider';
 import AppNavigator from '../../packages/core/src/navigation/AppNavigator';
 
 // ============================================
@@ -50,8 +51,10 @@ export default function App() {
             <AuthProvider>
               {/* CartProvider — Pharmacy tab reads totalItems for badge */}
               <CartProvider>
-                <ThemedStatusBar />
-                <AppNavigator />
+                <UserLocationProvider>
+                  <ThemedStatusBar />
+                  <AppNavigator />
+                </UserLocationProvider>
               </CartProvider>
             </AuthProvider>
           </ThemeProvider>

@@ -59,6 +59,10 @@ import EditProfileScreen from '../../../../apps/patient/src/features/patient/scr
 import HealthRecordsScreen from '../../../../apps/patient/src/features/patient/screens/HealthRecordsScreen';
 import HelpCenterScreen from '../../../../apps/patient/src/features/patient/screens/HelpCenterScreen';
 import PrivacyPolicyScreen from '../../../../apps/patient/src/features/patient/screens/PrivacyPolicyScreen';
+import SavedAddressesScreen from '../../../../apps/patient/src/features/patient/screens/SavedAddressesScreen';
+import FamilyMembersScreen from '../../../../apps/patient/src/features/patient/screens/FamilyMembersScreen';
+import TermsOfServiceScreen from '../../../../apps/patient/src/features/patient/screens/TermsOfServiceScreen';
+import ProfileImageScreen from '../../../../apps/patient/src/features/patient/screens/ProfileImageScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -152,9 +156,13 @@ function ProfileStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="ProfileMain" component={ProfileScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+      <Stack.Screen name="SavedAddresses" component={SavedAddressesScreen} />
       <Stack.Screen name="HealthRecords" component={HealthRecordsScreen} />
       <Stack.Screen name="HelpCenter" component={HelpCenterScreen} />
       <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+      <Stack.Screen name="FamilyMembers" component={FamilyMembersScreen} />
+      <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
+      <Stack.Screen name="ProfileImage" component={ProfileImageScreen} />
     </Stack.Navigator>
   );
 }

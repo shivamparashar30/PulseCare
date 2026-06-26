@@ -1,22 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
-  TextInput,
-  Switch,
-  KeyboardAvoidingView,
-  Platform,
-  Image,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  ActivityIndicator, Alert, TextInput, Switch,
+  KeyboardAvoidingView, Platform, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../supabase';
+import { AddressSection, addressFromDB, addressToDBFields, formatFullAddress, EMPTY_ADDRESS } from '../../../../packages/shared/src/components';
+import type { AddressData } from '../../../../packages/shared/src/components';
 
 interface Props { onLogout: () => void; profile: any; }
 
@@ -33,13 +26,14 @@ export default function StoreProfileTab({ onLogout, profile }: Props) {
   // Editable fields
   const [storeName, setStoreName] = useState('');
   const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
   const [openTime, setOpenTime] = useState('');
   const [closeTime, setCloseTime] = useState('');
   const [deliveryAvailable, setDeliveryAvailable] = useState(false);
   const [deliveryRadius, setDeliveryRadius] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  // Address (single object)
+  const [address, setAddress] = useState<AddressData>(EMPTY_ADDRESS);
 
   useEffect(() => {
     loadData();
@@ -65,11 +59,11 @@ export default function StoreProfileTab({ onLogout, profile }: Props) {
   const populateForm = (s: any) => {
     setStoreName(s.store_name || '');
     setPhone(s.phone || profile.phone || '');
-    setAddress(s.address || '');
     setOpenTime(s.open_time || '08:00 AM');
     setCloseTime(s.close_time || '10:00 PM');
     setDeliveryAvailable(!!s.delivery_available);
     setDeliveryRadius(String(s.delivery_radius_km || 5));
+    setAddress(addressFromDB(s));
   };
 
   const handleEdit = () => {
@@ -132,16 +126,19 @@ export default function StoreProfileTab({ onLogout, profile }: Props) {
     }
     setSaving(true);
     try {
+      const addrFields = addressToDBFields(address);
+      const fullAddr = formatFullAddress(address) || store?.address || '';
       const { error: storeErr } = await supabase
         .from('medical_stores')
         .update({
           store_name: storeName.trim(),
           phone: phone.trim() || null,
-          address: address.trim() || null,
+          address: fullAddr || null,
           open_time: openTime.trim() || '08:00 AM',
           close_time: closeTime.trim() || '10:00 PM',
           delivery_available: deliveryAvailable,
           delivery_radius_km: parseFloat(deliveryRadius) || 5,
+          ...addrFields,
         })
         .eq('id', profile.id);
 
@@ -268,7 +265,6 @@ export default function StoreProfileTab({ onLogout, profile }: Props) {
               <View style={styles.editForm}>
                 <EditField label="Email" value={profile.email} editable={false} />
                 <EditField label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-                <EditField label="Address" value={address} onChangeText={setAddress} multiline />
                 <EditField label="License" value={store?.license_number || 'Not set'} editable={false} />
                 <EditField label="Open Time" value={openTime} onChangeText={setOpenTime} placeholder="e.g. 08:00 AM" />
                 <EditField label="Close Time" value={closeTime} onChangeText={setCloseTime} placeholder="e.g. 10:00 PM" />
@@ -290,6 +286,15 @@ export default function StoreProfileTab({ onLogout, profile }: Props) {
                   <EditField label="Delivery Radius (km)" value={deliveryRadius} onChangeText={setDeliveryRadius} keyboardType="numeric" />
                 )}
 
+                {/* Address Section */}
+                <AddressSection
+                  accentColor={GREEN}
+                  title="Store Address"
+                  address={address}
+                  editing={true}
+                  onChange={setAddress}
+                />
+
                 <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
                   {saving ? (
                     <ActivityIndicator size="small" color="#fff" />
@@ -303,7 +308,6 @@ export default function StoreProfileTab({ onLogout, profile }: Props) {
                 {[
                   { icon: 'mail-outline', label: 'Email', value: profile.email },
                   { icon: 'call-outline', label: 'Phone', value: store?.phone || profile.phone || 'Not set' },
-                  { icon: 'location-outline', label: 'Address', value: store?.address || 'Not set' },
                   { icon: 'document-text-outline', label: 'License', value: store?.license_number || 'Not set' },
                   { icon: 'time-outline', label: 'Hours', value: `${store?.open_time || '08:00 AM'} - ${store?.close_time || '10:00 PM'}` },
                   { icon: 'bicycle-outline', label: 'Delivery', value: store?.delivery_available ? `Available (${store?.delivery_radius_km || 5} km)` : 'Not available' },
@@ -316,6 +320,15 @@ export default function StoreProfileTab({ onLogout, profile }: Props) {
                     </View>
                   </View>
                 ))}
+
+                {/* Address Section (view mode) */}
+                <AddressSection
+                  accentColor={GREEN}
+                  title="Store Address"
+                  address={address}
+                  editing={false}
+                  onChange={setAddress}
+                />
               </>
             )}
           </View>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   FlatList,
   TouchableOpacity,
   ScrollView,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,142 +15,257 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS } from '../../../../../../packages/core/src/constants';
 import { useTheme } from '../../../../../../packages/providers/src/ThemeProvider';
 import { Header, EmptyState } from '../../../../../../packages/shared/src/components';
-import { SAMPLE_APPOINTMENTS } from '../../../../../../packages/core/src/api/mockData';
 import { formatCurrency } from '../../../../../../packages/core/src/utils';
+import { supabase } from '../../../../../../packages/supabase/src/client';
 
-type RecordTab = 'visits' | 'prescriptions' | 'labReports' | 'orders' | 'payments';
-
-const LAB_REPORTS = [
-  { id: 'lr1', testName: 'Complete Blood Count (CBC)', date: '10 Jun 2025', lab: 'Apollo Diagnostics', status: 'completed', parameter: 'Hemoglobin: 13.5 g/dL (Normal)' },
-  { id: 'lr2', testName: 'Blood Sugar (Fasting)', date: '22 May 2025', lab: 'Dr. Lal PathLabs', status: 'completed', parameter: 'Glucose: 92 mg/dL (Normal)' },
-  { id: 'lr3', testName: 'Thyroid Profile (TSH)', date: '5 Apr 2025', lab: 'Metropolis Healthcare', status: 'completed', parameter: 'TSH: 2.1 mIU/L (Normal)' },
-  { id: 'lr4', testName: 'Vitamin D3', date: '1 Mar 2025', lab: 'SRL Diagnostics', status: 'completed', parameter: 'Vit D: 18 ng/mL (Deficient)' },
-];
-
-const ORDERS = [
-  { id: 'ord1', items: 'Crocin 500mg, Vitamin D3 Sachet', date: '12 Jun 2025', total: 285, status: 'Delivered', pharmacy: 'MedPlus Pharmacy' },
-  { id: 'ord2', items: 'Azithromycin 500mg, Omeprazole 20mg', date: '28 May 2025', total: 420, status: 'Delivered', pharmacy: 'Apollo Pharmacy' },
-  { id: 'ord3', items: 'Metformin 500mg, Glimepiride 1mg', date: '3 May 2025', total: 650, status: 'Delivered', pharmacy: 'MedPlus Pharmacy' },
-];
-
-const PAYMENTS = [
-  { id: 'pay1', description: 'Consultation - Dr. Priya Sharma', date: '12 Jun 2025', amount: 700, method: 'UPI', type: 'consultation' },
-  { id: 'pay2', description: 'CBC + Sugar Test', date: '10 Jun 2025', amount: 650, method: 'Card', type: 'lab' },
-  { id: 'pay3', description: 'Medicine Order #ORD001', date: '12 Jun 2025', amount: 285, method: 'UPI', type: 'medicine' },
-  { id: 'pay4', description: 'Consultation - Dr. Rahul Gupta', date: '1 Mar 2025', amount: 1000, method: 'Net Banking', type: 'consultation' },
-];
+type RecordTab = 'visits' | 'prescriptions' | 'labReports' | 'orders';
 
 const tabs: { key: RecordTab; label: string; icon: string }[] = [
   { key: 'visits', label: 'Visits', icon: 'calendar' },
   { key: 'prescriptions', label: 'Rx', icon: 'document-text' },
   { key: 'labReports', label: 'Reports', icon: 'flask' },
   { key: 'orders', label: 'Orders', icon: 'bag' },
-  { key: 'payments', label: 'Payments', icon: 'card' },
 ];
 
 export default function HealthRecordsScreen({ navigation }: any) {
   const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState<RecordTab>('visits');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const completedVisits = SAMPLE_APPOINTMENTS.filter(a => a.status === 'completed');
+  const [visits, setVisits] = useState<any[]>([]);
+  const [labReports, setLabReports] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
 
-  const renderVisit = ({ item }: { item: typeof SAMPLE_APPOINTMENTS[0] }) => (
-    <View style={[styles.recordCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+  const loadData = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+      const uid = session.user.id;
+
+      const [apptRes, labRes, orderRes] = await Promise.all([
+        supabase
+          .from('appointments')
+          .select('id, date, time, type, status, symptoms, payment_amount, doctor_id, profiles!appointments_doctor_id_fkey(full_name), doctor_profiles(specialization)')
+          .eq('patient_id', uid)
+          .in('status', ['Completed', 'Confirmed', 'Approved'])
+          .order('date', { ascending: false }),
+        supabase
+          .from('lab_bookings')
+          .select('id, date, time_slot, status, amount, lab_test_id, health_package_id, lab_tests(name), health_packages(name), diagnostics_centers(name)')
+          .eq('patient_id', uid)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('orders')
+          .select('id, total_amount, status, created_at, store_id, medical_stores(store_name)')
+          .eq('patient_id', uid)
+          .order('created_at', { ascending: false }),
+      ]);
+
+      const mapVisits = (apptRes.data || []).map((a: any) => {
+        const docProfile = Array.isArray(a.profiles) ? a.profiles[0] : a.profiles;
+        const docSpec = Array.isArray(a.doctor_profiles) ? a.doctor_profiles[0] : a.doctor_profiles;
+        return {
+          id: a.id,
+          doctorName: docProfile?.full_name || 'Doctor',
+          specialization: docSpec?.specialization || '',
+          date: a.date,
+          time: a.time,
+          type: a.type,
+          status: a.status,
+          amount: a.payment_amount,
+        };
+      });
+
+      const mapLabs = (labRes.data || []).map((l: any) => {
+        const test = Array.isArray(l.lab_tests) ? l.lab_tests[0] : l.lab_tests;
+        const pkg = Array.isArray(l.health_packages) ? l.health_packages[0] : l.health_packages;
+        const center = Array.isArray(l.diagnostics_centers) ? l.diagnostics_centers[0] : l.diagnostics_centers;
+        return {
+          id: l.id,
+          testName: test?.name || pkg?.name || 'Lab Test',
+          center: center?.name || '',
+          date: l.date,
+          status: l.status,
+          amount: l.amount,
+        };
+      });
+
+      const mapOrders = (orderRes.data || []).map((o: any) => {
+        const store = Array.isArray(o.medical_stores) ? o.medical_stores[0] : o.medical_stores;
+        return {
+          id: o.id,
+          storeName: store?.store_name || 'Pharmacy',
+          total: o.total_amount,
+          status: o.status,
+          date: o.created_at,
+        };
+      });
+
+      setVisits(mapVisits);
+      setLabReports(mapLabs);
+      setOrders(mapOrders);
+    } catch (e) {
+      console.error('Failed to load health records:', e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const onRefresh = () => { setRefreshing(true); loadData(); };
+
+  const prescriptions = visits.filter(v => v.status === 'Completed');
+
+  const formatDate = (d: string) => {
+    if (!d) return '';
+    try {
+      const date = new Date(d);
+      return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch { return d; }
+  };
+
+  const statusColor = (s: string) => {
+    const map: Record<string, string> = {
+      Completed: COLORS.success, Confirmed: COLORS.primary, Approved: '#7c3aed',
+      delivered: COLORS.success, 'Report Ready': COLORS.success, Processing: '#d97706',
+      Scheduled: COLORS.primary, 'Sample Collected': '#0891b2',
+    };
+    return map[s] || COLORS.textSecondary;
+  };
+
+  const renderVisit = ({ item }: { item: any }) => (
+    <TouchableOpacity
+      style={[styles.recordCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+      onPress={() => navigation.getParent()?.navigate('Appointments', { screen: 'AppointmentDetail', params: { appointmentId: item.id } })}
+      activeOpacity={0.7}
+    >
       <View style={[styles.recordIcon, { backgroundColor: COLORS.primary + '15' }]}>
         <Ionicons name="person" size={20} color={COLORS.primary} />
       </View>
       <View style={styles.recordInfo}>
-        <Text style={[styles.recordTitle, { color: colors.text }]}>{item.doctorName}</Text>
-        <Text style={[styles.recordSub, { color: colors.textSecondary }]}>{item.doctorSpecialization}</Text>
-        <Text style={[styles.recordDate, { color: colors.textTertiary }]}>{item.date} · {item.time}</Text>
-        {item.prescription && (
-          <Text style={[styles.prescriptionNote, { color: COLORS.success }]}>
-            Prescription available
-          </Text>
-        )}
+        <Text style={[styles.recordTitle, { color: colors.textPrimary }]}>{item.doctorName}</Text>
+        <Text style={[styles.recordSub, { color: colors.textSecondary }]}>{item.specialization}</Text>
+        <Text style={[styles.recordDate, { color: colors.textTertiary }]}>{formatDate(item.date)} {item.time !== 'To be confirmed' ? `· ${item.time}` : ''}</Text>
       </View>
-      <TouchableOpacity
-        onPress={() => navigation.navigate('Appointments', { screen: 'AppointmentDetail', params: { appointmentId: item.id } })}
-      >
-        <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-      </TouchableOpacity>
-    </View>
+      <View style={{ alignItems: 'flex-end', gap: 4 }}>
+        <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status) + '15' }]}>
+          <Text style={[styles.statusText, { color: statusColor(item.status) }]}>{item.status}</Text>
+        </View>
+        {item.amount > 0 && <Text style={[styles.amount, { color: colors.textPrimary }]}>{formatCurrency(item.amount)}</Text>}
+      </View>
+    </TouchableOpacity>
   );
 
-  const renderPrescription = ({ item }: { item: typeof SAMPLE_APPOINTMENTS[0] }) => {
-    if (!item.prescription) return null;
-    return (
-      <View style={[styles.recordCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={[styles.recordIcon, { backgroundColor: '#9B59B6' + '15' }]}>
-          <Ionicons name="document-text" size={20} color="#9B59B6" />
-        </View>
-        <View style={styles.recordInfo}>
-          <Text style={[styles.recordTitle, { color: colors.text }]}>Prescription</Text>
-          <Text style={[styles.recordSub, { color: colors.textSecondary }]}>Dr. {item.doctorName} · {item.date}</Text>
-          <Text style={[styles.recordDate, { color: colors.textTertiary }]}>
-            {item.prescription.medicines.length} medicines prescribed
-          </Text>
-        </View>
-        <TouchableOpacity style={[styles.viewBtn, { borderColor: '#9B59B6' }]}>
-          <Text style={[styles.viewBtnText, { color: '#9B59B6' }]}>View</Text>
-        </TouchableOpacity>
+  const renderPrescription = ({ item }: { item: any }) => (
+    <TouchableOpacity
+      style={[styles.recordCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+      onPress={() => navigation.getParent()?.navigate('Appointments', { screen: 'AppointmentDetail', params: { appointmentId: item.id } })}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.recordIcon, { backgroundColor: '#9B59B6' + '15' }]}>
+        <Ionicons name="document-text" size={20} color="#9B59B6" />
       </View>
-    );
-  };
+      <View style={styles.recordInfo}>
+        <Text style={[styles.recordTitle, { color: colors.textPrimary }]}>Prescription</Text>
+        <Text style={[styles.recordSub, { color: colors.textSecondary }]}>Dr. {item.doctorName} · {item.specialization}</Text>
+        <Text style={[styles.recordDate, { color: colors.textTertiary }]}>{formatDate(item.date)}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+    </TouchableOpacity>
+  );
 
-  const renderReport = ({ item }: { item: typeof LAB_REPORTS[0] }) => (
+  const renderReport = ({ item }: { item: any }) => (
     <View style={[styles.recordCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={[styles.recordIcon, { backgroundColor: '#FF6B35' + '15' }]}>
         <Ionicons name="flask" size={20} color="#FF6B35" />
       </View>
       <View style={styles.recordInfo}>
-        <Text style={[styles.recordTitle, { color: colors.text }]}>{item.testName}</Text>
-        <Text style={[styles.recordSub, { color: colors.textSecondary }]}>{item.lab}</Text>
-        <Text style={[styles.recordDate, { color: colors.textTertiary }]}>{item.date}</Text>
-        <Text style={[styles.prescriptionNote, { color: item.parameter.includes('Deficient') || item.parameter.includes('High') ? '#EF4444' : COLORS.success }]}>
-          {item.parameter}
-        </Text>
+        <Text style={[styles.recordTitle, { color: colors.textPrimary }]}>{item.testName}</Text>
+        <Text style={[styles.recordSub, { color: colors.textSecondary }]}>{item.center}</Text>
+        <Text style={[styles.recordDate, { color: colors.textTertiary }]}>{formatDate(item.date)}</Text>
       </View>
-      <TouchableOpacity style={[styles.downloadBtn, { backgroundColor: COLORS.primary + '15' }]}>
-        <Ionicons name="download" size={16} color={COLORS.primary} />
-      </TouchableOpacity>
+      <View style={{ alignItems: 'flex-end', gap: 4 }}>
+        <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status) + '15' }]}>
+          <Text style={[styles.statusText, { color: statusColor(item.status) }]}>{item.status}</Text>
+        </View>
+        {item.amount > 0 && <Text style={[styles.amount, { color: colors.textPrimary }]}>{formatCurrency(item.amount)}</Text>}
+      </View>
     </View>
   );
 
-  const renderOrder = ({ item }: { item: typeof ORDERS[0] }) => (
-    <View style={[styles.recordCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+  const renderOrder = ({ item }: { item: any }) => (
+    <TouchableOpacity
+      style={[styles.recordCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+      onPress={() => {
+        if (['delivered', 'cancelled', 'rejected'].includes(item.status)) return;
+        navigation.getParent()?.navigate('Pharmacy', { screen: 'OrderTracking', params: { orderId: item.id } });
+      }}
+      activeOpacity={0.7}
+    >
       <View style={[styles.recordIcon, { backgroundColor: COLORS.success + '15' }]}>
         <Ionicons name="bag" size={20} color={COLORS.success} />
       </View>
       <View style={styles.recordInfo}>
-        <Text style={[styles.recordTitle, { color: colors.text }]} numberOfLines={1}>{item.items}</Text>
-        <Text style={[styles.recordSub, { color: colors.textSecondary }]}>{item.pharmacy}</Text>
-        <Text style={[styles.recordDate, { color: colors.textTertiary }]}>{item.date}</Text>
-        <Text style={[styles.prescriptionNote, { color: COLORS.success }]}>✓ {item.status}</Text>
+        <Text style={[styles.recordTitle, { color: colors.textPrimary }]}>{item.storeName}</Text>
+        <Text style={[styles.recordDate, { color: colors.textTertiary }]}>{formatDate(item.date)}</Text>
       </View>
-      <Text style={[styles.amount, { color: colors.text }]}>{formatCurrency(item.total)}</Text>
-    </View>
+      <View style={{ alignItems: 'flex-end', gap: 4 }}>
+        <View style={[styles.statusBadge, { backgroundColor: statusColor(item.status) + '15' }]}>
+          <Text style={[styles.statusText, { color: statusColor(item.status) }]}>{item.status}</Text>
+        </View>
+        <Text style={[styles.amount, { color: colors.textPrimary }]}>{formatCurrency(item.total)}</Text>
+      </View>
+    </TouchableOpacity>
   );
 
-  const renderPayment = ({ item }: { item: typeof PAYMENTS[0] }) => {
-    const typeColors: Record<string, string> = { consultation: COLORS.primary, lab: '#FF6B35', medicine: COLORS.success };
-    const tc = typeColors[item.type] || COLORS.primary;
-    return (
-      <View style={[styles.recordCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={[styles.recordIcon, { backgroundColor: tc + '15' }]}>
-          <Ionicons name="card" size={20} color={tc} />
-        </View>
-        <View style={styles.recordInfo}>
-          <Text style={[styles.recordTitle, { color: colors.text }]} numberOfLines={1}>{item.description}</Text>
-          <Text style={[styles.recordDate, { color: colors.textTertiary }]}>{item.date} · {item.method}</Text>
-        </View>
-        <Text style={[styles.amount, { color: colors.text }]}>{formatCurrency(item.amount)}</Text>
-      </View>
-    );
+  // Determine which tabs have data
+  const tabCounts: Record<RecordTab, number> = {
+    visits: visits.length,
+    prescriptions: prescriptions.length,
+    labReports: labReports.length,
+    orders: orders.length,
   };
 
-  const prescriptionsData = SAMPLE_APPOINTMENTS.filter(a => !!a.prescription);
-  const totalSpend = PAYMENTS.reduce((s, p) => s + p.amount, 0);
+  const visibleTabs = tabs.filter(t => tabCounts[t.key] > 0);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+        <Header title="Health Records" onBack={() => navigation.goBack()} />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const totalRecords = visits.length + labReports.length + orders.length;
+
+  if (totalRecords === 0) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+        <Header title="Health Records" onBack={() => navigation.goBack()} />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xl }}>
+          <EmptyState
+            icon="document-text-outline"
+            title="No Health Records Yet"
+            subtitle="Your doctor visits, lab reports, prescriptions, and orders will appear here once you start using the app."
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Auto-select first visible tab if current tab has no data
+  if (visibleTabs.length > 0 && tabCounts[activeTab] === 0) {
+    const firstWithData = visibleTabs[0].key;
+    if (firstWithData !== activeTab) {
+      setActiveTab(firstWithData);
+    }
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
@@ -157,11 +274,10 @@ export default function HealthRecordsScreen({ navigation }: any) {
       {/* Stats Banner */}
       <LinearGradient colors={[COLORS.primary, '#0099FF']} style={styles.statsBanner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
         {[
-          { value: String(SAMPLE_APPOINTMENTS.length), label: 'Total Visits' },
-          { value: String(LAB_REPORTS.length), label: 'Lab Reports' },
-          { value: String(ORDERS.length), label: 'Orders' },
-          { value: `₹${(totalSpend / 1000).toFixed(1)}k`, label: 'Total Spend' },
-        ].map((stat, i) => (
+          { value: String(visits.length), label: 'Visits', show: visits.length > 0 },
+          { value: String(labReports.length), label: 'Lab Reports', show: labReports.length > 0 },
+          { value: String(orders.length), label: 'Orders', show: orders.length > 0 },
+        ].filter(s => s.show).map((stat, i) => (
           <View key={i} style={styles.statItem}>
             <Text style={styles.statValue}>{stat.value}</Text>
             <Text style={styles.statLabel}>{stat.label}</Text>
@@ -169,75 +285,68 @@ export default function HealthRecordsScreen({ navigation }: any) {
         ))}
       </LinearGradient>
 
-      {/* Tabs */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabsContent}>
-        {tabs.map(tab => (
-          <TouchableOpacity
-            key={tab.key}
-            style={[styles.tab, { borderColor: colors.border, backgroundColor: colors.card },
-              activeTab === tab.key && { backgroundColor: COLORS.primary, borderColor: COLORS.primary }]}
-            onPress={() => setActiveTab(tab.key)}
-          >
-            <Ionicons name={tab.icon as any} size={14} color={activeTab === tab.key ? '#fff' : colors.textSecondary} />
-            <Text style={[styles.tabText, { color: activeTab === tab.key ? '#fff' : colors.textSecondary }]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      {/* Tabs - only show tabs that have data */}
+      {visibleTabs.length > 1 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabsContent}>
+          {visibleTabs.map(tab => (
+            <TouchableOpacity
+              key={tab.key}
+              style={[styles.tab, { borderColor: colors.border, backgroundColor: colors.card },
+                activeTab === tab.key && { backgroundColor: COLORS.primary, borderColor: COLORS.primary }]}
+              onPress={() => setActiveTab(tab.key)}
+            >
+              <Ionicons name={tab.icon as any} size={14} color={activeTab === tab.key ? '#fff' : colors.textSecondary} />
+              <Text style={[styles.tabText, { color: activeTab === tab.key ? '#fff' : colors.textSecondary }]}>
+                {tab.label} ({tabCounts[tab.key]})
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
 
       {/* Content */}
       {activeTab === 'visits' && (
         <FlatList
-          data={SAMPLE_APPOINTMENTS}
+          data={visits}
           keyExtractor={i => i.id}
           renderItem={renderVisit}
           contentContainerStyle={styles.list}
           ItemSeparatorComponent={() => <View style={{ height: SPACING.sm }} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
           ListEmptyComponent={<EmptyState icon="calendar-outline" title="No Visit Records" subtitle="Your past doctor visits will appear here." />}
         />
       )}
       {activeTab === 'prescriptions' && (
         <FlatList
-          data={prescriptionsData}
+          data={prescriptions}
           keyExtractor={i => i.id}
           renderItem={renderPrescription}
           contentContainerStyle={styles.list}
           ItemSeparatorComponent={() => <View style={{ height: SPACING.sm }} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
           ListEmptyComponent={<EmptyState icon="document-text-outline" title="No Prescriptions" subtitle="Your prescriptions will appear here." />}
         />
       )}
       {activeTab === 'labReports' && (
         <FlatList
-          data={LAB_REPORTS}
+          data={labReports}
           keyExtractor={i => i.id}
           renderItem={renderReport}
           contentContainerStyle={styles.list}
           ItemSeparatorComponent={() => <View style={{ height: SPACING.sm }} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
+          ListEmptyComponent={<EmptyState icon="flask-outline" title="No Lab Reports" subtitle="Your lab test reports will appear here." />}
         />
       )}
       {activeTab === 'orders' && (
         <FlatList
-          data={ORDERS}
+          data={orders}
           keyExtractor={i => i.id}
           renderItem={renderOrder}
           contentContainerStyle={styles.list}
           ItemSeparatorComponent={() => <View style={{ height: SPACING.sm }} />}
-        />
-      )}
-      {activeTab === 'payments' && (
-        <FlatList
-          data={PAYMENTS}
-          keyExtractor={i => i.id}
-          renderItem={renderPayment}
-          contentContainerStyle={styles.list}
-          ItemSeparatorComponent={() => <View style={{ height: SPACING.sm }} />}
-          ListFooterComponent={
-            <View style={[styles.totalRow, { borderTopColor: colors.border }]}>
-              <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>Total Healthcare Spend</Text>
-              <Text style={[styles.totalAmount, { color: colors.text }]}>{formatCurrency(totalSpend)}</Text>
-            </View>
-          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
+          ListEmptyComponent={<EmptyState icon="bag-outline" title="No Orders" subtitle="Your medicine orders will appear here." />}
         />
       )}
     </SafeAreaView>
@@ -261,12 +370,7 @@ const styles = StyleSheet.create({
   recordTitle: { fontSize: FONT_SIZES.md, fontWeight: '600', marginBottom: 2 },
   recordSub: { fontSize: FONT_SIZES.sm, marginBottom: 2 },
   recordDate: { fontSize: FONT_SIZES.xs },
-  prescriptionNote: { fontSize: FONT_SIZES.xs, marginTop: 2, fontWeight: '500' },
-  viewBtn: { paddingHorizontal: SPACING.sm, paddingVertical: 5, borderRadius: BORDER_RADIUS.sm, borderWidth: 1 },
-  viewBtnText: { fontSize: FONT_SIZES.xs, fontWeight: '600' },
-  downloadBtn: { width: 34, height: 34, borderRadius: BORDER_RADIUS.md, alignItems: 'center', justifyContent: 'center' },
-  amount: { fontSize: FONT_SIZES.md, fontWeight: '700' },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: SPACING.md, marginTop: SPACING.md, borderTopWidth: 1 },
-  totalLabel: { fontSize: FONT_SIZES.md },
-  totalAmount: { fontSize: FONT_SIZES.lg, fontWeight: '800' },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: BORDER_RADIUS.full },
+  statusText: { fontSize: 10, fontWeight: '700' },
+  amount: { fontSize: FONT_SIZES.sm, fontWeight: '700' },
 });

@@ -477,6 +477,10 @@ export const AvailabilityDot: React.FC<{ isAvailable: boolean }> = ({ isAvailabl
 );
 
 export { default as RazorpayWebCheckout } from './RazorpayWebCheckout';
+export { default as AddressCompletionScreen } from './AddressCompletionScreen';
+export { default as AddressSection } from './AddressSection';
+export { addressFromDB, addressToDBFields, formatFullAddress, EMPTY_ADDRESS } from './AddressSection';
+export type { AddressData } from './AddressSection';
 
 // ============================================
 // STYLES

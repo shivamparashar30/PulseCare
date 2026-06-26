@@ -297,6 +297,8 @@ export type ProfileStackParamList = {
   NotificationSettings: undefined;
   HelpCenter: undefined;
   PrivacyPolicy: undefined;
+  TermsOfService: undefined;
+  ProfileImage: undefined;
 };
 
 // ============================================

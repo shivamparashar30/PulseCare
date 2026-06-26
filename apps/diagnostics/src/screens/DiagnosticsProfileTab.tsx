@@ -7,6 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../supabase';
+import { AddressSection, addressFromDB, addressToDBFields, EMPTY_ADDRESS } from '../../../../packages/shared/src/components';
+import type { AddressData } from '../../../../packages/shared/src/components';
 
 const PURPLE = '#7C3AED';
 
@@ -34,13 +36,14 @@ export default function DiagnosticsProfileTab({ profile, onLogout }: Props) {
 
   // Editable fields
   const [centerName, setCenterName] = useState('');
-  const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
   const [availableStartTime, setAvailableStartTime] = useState('07:00 AM');
   const [availableEndTime, setAvailableEndTime] = useState('04:00 PM');
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  // Address (single object)
+  const [address, setAddress] = useState<AddressData>(EMPTY_ADDRESS);
 
   const load = useCallback(async () => {
     if (!profile?.id) return;
@@ -48,10 +51,10 @@ export default function DiagnosticsProfileTab({ profile, onLogout }: Props) {
     setCenterInfo(data);
     if (data) {
       setCenterName(data.center_name || '');
-      setAddress(data.address || '');
       setPhone(data.phone || '');
       setAvailableStartTime(data.available_start_time || '07:00 AM');
       setAvailableEndTime(data.available_end_time || '04:00 PM');
+      setAddress(addressFromDB(data));
     }
     setAvatarUrl(profile.avatar_url || null);
   }, [profile?.id]);
@@ -104,14 +107,17 @@ export default function DiagnosticsProfileTab({ profile, onLogout }: Props) {
   const handleSave = async () => {
     setSaving(true);
     try {
+      const addrFields = addressToDBFields(address);
+      const fullAddr = [address.address_line1, address.city, address.state, address.pincode].filter(Boolean).join(', ');
       const { error } = await supabase
         .from('diagnostics_centers')
         .update({
           center_name: centerName,
-          address,
+          address: fullAddr || centerInfo?.address || '',
           phone,
           available_start_time: availableStartTime,
           available_end_time: availableEndTime,
+          ...addrFields,
         })
         .eq('id', profile.id);
 
@@ -193,7 +199,6 @@ export default function DiagnosticsProfileTab({ profile, onLogout }: Props) {
           <InfoRow icon="mail-outline" label="Email" value={profile?.email || '-'} />
           <InfoRow icon="business-outline" label="Center Name" value={centerName} editable={editing} onChangeText={setCenterName} />
           <InfoRow icon="call-outline" label="Phone" value={phone} editable={editing} onChangeText={setPhone} />
-          <InfoRow icon="location-outline" label="Address" value={address} editable={editing} onChangeText={setAddress} />
           <InfoRow icon="document-text-outline" label="Registration ID" value={centerInfo?.registration_id || '-'} />
 
           {/* Available Time Slots */}
@@ -237,6 +242,15 @@ export default function DiagnosticsProfileTab({ profile, onLogout }: Props) {
               accentColor={PURPLE}
             />
           )}
+
+          {/* Address Section */}
+          <AddressSection
+            accentColor={PURPLE}
+            title="Center Address"
+            address={address}
+            editing={editing}
+            onChange={setAddress}
+          />
 
           {editing && (
             <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving}>

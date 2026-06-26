@@ -142,15 +142,15 @@ export default function PrivacyPolicyScreen({ navigation }: any) {
         <View style={[styles.banner, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Ionicons name="shield-checkmark" size={40} color={colors.primary} />
           <View style={styles.bannerText}>
-            <Text style={[styles.bannerTitle, { color: colors.text }]}>Your Privacy Matters</Text>
-            <Text style={[styles.bannerSub, { color: colors.textSecondary }]}>
+            <Text style={[styles.bannerTitle, { color: colors.textPrimary }]}>Your Privacy Matters</Text>
+            <Text style={[styles.bannerSub, { color: colors.textPrimarySecondary }]}>
               Last updated: June 1, 2025 · Version 3.2
             </Text>
           </View>
         </View>
 
         {/* Intro */}
-        <Text style={[styles.intro, { color: colors.textSecondary, backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[styles.intro, { color: colors.textPrimarySecondary, backgroundColor: colors.card, borderColor: colors.border }]}>
           HealthCare+ is committed to protecting your privacy and handling your health information with the utmost care and security. This policy explains how we collect, use, and protect your personal and health data.
         </Text>
 
@@ -166,14 +166,14 @@ export default function PrivacyPolicyScreen({ navigation }: any) {
                 <View style={[styles.sectionIconBox, { backgroundColor: colors.primary + '15' }]}>
                   <Ionicons name={section.icon as any} size={18} color={colors.primary} />
                 </View>
-                <Text style={[styles.sectionTitle, { color: colors.text }]} numberOfLines={isOpen ? undefined : 1}>
+                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]} numberOfLines={isOpen ? undefined : 1}>
                   {section.title}
                 </Text>
-                <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
+                <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textPrimarySecondary} />
               </TouchableOpacity>
               {isOpen && (
                 <View style={[styles.sectionContent, { borderTopColor: colors.border }]}>
-                  <Text style={[styles.sectionText, { color: colors.textSecondary }]}>
+                  <Text style={[styles.sectionText, { color: colors.textPrimarySecondary }]}>
                     {section.content}
                   </Text>
                 </View>
@@ -184,10 +184,10 @@ export default function PrivacyPolicyScreen({ navigation }: any) {
 
         {/* Footer */}
         <View style={[styles.footer, { borderTopColor: colors.border }]}>
-          <Text style={[styles.footerText, { color: colors.textTertiary }]}>
+          <Text style={[styles.footerText, { color: colors.textPrimaryTertiary }]}>
             By using HealthCare+, you acknowledge that you have read and understood this Privacy Policy.
           </Text>
-          <Text style={[styles.footerText, { color: colors.textTertiary }]}>
+          <Text style={[styles.footerText, { color: colors.textPrimaryTertiary }]}>
             © 2025 HealthCare+ Technologies Pvt. Ltd. All rights reserved.
           </Text>
         </View>

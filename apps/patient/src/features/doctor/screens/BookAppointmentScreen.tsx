@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import { useDoctor } from '../../../../../../packages/core/src/hooks';
 import { DoctorStackParamList } from '../../../../../../packages/core/src/types';
 import { getNextDates } from '../../../../../../packages/core/src/utils';
 import { supabase } from '../../../../../../packages/supabase/src/client';
+import { useAuth } from '../../../../../../packages/providers/src/AuthProvider';
 
 type Nav = NativeStackNavigationProp<DoctorStackParamList, 'BookAppointment'>;
 type Route = RouteProp<DoctorStackParamList, 'BookAppointment'>;
@@ -36,6 +37,7 @@ export default function BookAppointmentScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const { doctorId } = route.params;
+  const { user } = useAuth();
 
   const { data: doctor, isLoading } = useDoctor(doctorId);
 
@@ -44,8 +46,23 @@ export default function BookAppointmentScreen() {
   const [visitType, setVisitType] = useState('in-person');
   const [symptoms, setSymptoms] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [patientName, setPatientName] = useState(user?.name || '');
+  const [patientSource, setPatientSource] = useState<'self' | 'family' | 'custom'>('self');
+  const [familyMembers, setFamilyMembers] = useState<{ id: string; name: string; relationship: string }[]>([]);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) return;
+      supabase.from('family_members').select('id, name, relationship').eq('user_id', session.user.id)
+        .then(({ data }) => { if (data) setFamilyMembers(data); });
+    });
+  }, []);
 
   const handleSubmitRequest = async () => {
+    if (!patientName.trim()) {
+      Alert.alert('Error', 'Please enter the patient name.');
+      return;
+    }
     setSubmitting(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -64,6 +81,7 @@ export default function BookAppointmentScreen() {
         symptoms: symptoms || null,
         payment_amount: doctor?.fees || 0,
         payment_status: 'pending',
+        patient_name: patientName.trim(),
       }).select().single();
 
       if (error) throw error;
@@ -152,6 +170,66 @@ export default function BookAppointmentScreen() {
               );
             })}
           </View>
+        </View>
+
+        {/* Patient Name */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Booking For</Text>
+          <View style={{ flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.sm }}>
+            <TouchableOpacity
+              style={[styles.visitCard, { flex: 0, paddingHorizontal: SPACING.md, paddingVertical: 8 },
+                patientSource === 'self' && styles.visitActive]}
+              onPress={() => { setPatientSource('self'); setPatientName(user?.name || ''); }}
+            >
+              <Text style={[styles.visitLabel, { fontSize: FONT_SIZES.sm }, patientSource === 'self' && { color: '#fff' }]}>Myself</Text>
+            </TouchableOpacity>
+            {familyMembers.length > 0 && (
+              <TouchableOpacity
+                style={[styles.visitCard, { flex: 0, paddingHorizontal: SPACING.md, paddingVertical: 8 },
+                  patientSource === 'family' && styles.visitActive]}
+                onPress={() => setPatientSource('family')}
+              >
+                <Text style={[styles.visitLabel, { fontSize: FONT_SIZES.sm }, patientSource === 'family' && { color: '#fff' }]}>Family</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={[styles.visitCard, { flex: 0, paddingHorizontal: SPACING.md, paddingVertical: 8 },
+                patientSource === 'custom' && styles.visitActive]}
+              onPress={() => { setPatientSource('custom'); setPatientName(''); }}
+            >
+              <Text style={[styles.visitLabel, { fontSize: FONT_SIZES.sm }, patientSource === 'custom' && { color: '#fff' }]}>Other</Text>
+            </TouchableOpacity>
+          </View>
+          {patientSource === 'family' && familyMembers.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
+                {familyMembers.map(fm => (
+                  <TouchableOpacity
+                    key={fm.id}
+                    style={[styles.dateCard, patientName === fm.name && styles.dateCardActive]}
+                    onPress={() => setPatientName(fm.name)}
+                  >
+                    <Text style={[styles.dateDayName, patientName === fm.name && { color: 'rgba(255,255,255,0.85)' }]}>{fm.relationship}</Text>
+                    <Text style={[styles.dateNum, { fontSize: FONT_SIZES.sm }, patientName === fm.name && { color: '#fff' }]}>{fm.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+          )}
+          {patientSource === 'custom' && (
+            <TextInput
+              style={styles.symptomsInput}
+              value={patientName}
+              onChangeText={setPatientName}
+              placeholder="Enter patient name"
+              placeholderTextColor={COLORS.textTertiary}
+            />
+          )}
+          {patientSource === 'self' && (
+            <View style={{ backgroundColor: COLORS.primaryUltraLight, padding: SPACING.sm, borderRadius: BORDER_RADIUS.md }}>
+              <Text style={{ fontSize: FONT_SIZES.sm, color: COLORS.primary, fontWeight: '600' }}>{user?.name || 'You'}</Text>
+            </View>
+          )}
         </View>
 
         {/* Date picker */}

@@ -46,32 +46,39 @@ export default function EditProfileScreen({ navigation }: any) {
   const update = (key: string, value: string) => setForm(p => ({ ...p, [key]: value }));
 
   const pickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission Required', 'Please allow access to your photo library.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.7,
-      base64: true,
-    });
-
-    if (result.canceled || !result.assets[0]?.base64) return;
-
-    setUploadingPhoto(true);
     try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow access to your photo library.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+        base64: true,
+      });
+
+      if (result.canceled || !result.assets[0]) return;
+
+      const asset = result.assets[0];
+      if (!asset.base64) {
+        Alert.alert('Error', 'Could not process the image. Please try another photo.');
+        return;
+      }
+
+      setUploadingPhoto(true);
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) throw new Error('Not authenticated');
 
-      const publicUrl = await uploadAvatar(authUser.id, result.assets[0].base64);
+      const publicUrl = await uploadAvatar(authUser.id, asset.base64);
       setAvatarUri(publicUrl);
       updateUser({ avatar: publicUrl });
       Alert.alert('Success', 'Profile photo updated!');
     } catch (err: any) {
+      console.error('Image upload error:', err);
       Alert.alert('Error', err.message || 'Failed to upload photo.');
     } finally {
       setUploadingPhoto(false);

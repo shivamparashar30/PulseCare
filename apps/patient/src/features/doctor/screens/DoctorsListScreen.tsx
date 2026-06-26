@@ -7,9 +7,9 @@ import {
   Image,
   TextInput,
   StyleSheet,
-  ActivityIndicator,
   RefreshControl,
   ScrollView,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,7 +18,9 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { COLORS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../../../../../packages/core/src/constants';
 import { useTheme } from '../../../../../../packages/providers/src/ThemeProvider';
+import { useUserLocation } from '../../../../../../packages/providers/src/UserLocationProvider';
 import { useDoctors } from '../../../../../../packages/core/src/hooks';
+import { getDistanceKm, formatDistance, buildDirectionsLink } from '../../../../../../packages/core/src/utils/location';
 import { DoctorStackParamList } from '../../../../../../packages/core/src/types';
 import { StarRating, EmptyState, DoctorCardSkeleton } from '../../../../../../packages/shared/src/components';
 
@@ -37,28 +39,44 @@ const SPECIALIZATIONS = [
   'Ophthalmologist',
 ];
 
-const SORT_OPTIONS = ['Relevance', 'Rating', 'Experience', 'Fee: Low to High', 'Fee: High to Low'];
+const SORT_OPTIONS = ['Relevance', 'Rating', 'Experience', 'Fee: Low to High', 'Fee: High to Low', 'Distance: Nearest', 'Distance: Farthest'];
+
+const DISTANCE_FILTERS = ['Any', '< 5 km', '< 10 km', '< 25 km', '< 50 km'];
 
 export default function DoctorsListScreen() {
   const navigation = useNavigation<Nav>();
   const { colors } = useTheme();
+  const { location: userLocation } = useUserLocation();
 
   const [search, setSearch] = useState('');
   const [activeSpec, setActiveSpec] = useState('All');
   const [activeSort, setActiveSort] = useState('Relevance');
   const [showSortMenu, setShowSortMenu] = useState(false);
+  const [distanceFilter, setDistanceFilter] = useState('Any');
 
   const { data: doctors = [], isLoading, refetch, isRefetching } = useDoctors();
 
+  // Enrich doctors with distance
+  const enriched = useMemo(() => {
+    return doctors.map((d: any) => {
+      let distance: number | null = null;
+      if (userLocation && d.latitude && d.longitude) {
+        distance = getDistanceKm(userLocation.latitude, userLocation.longitude, d.latitude, d.longitude);
+      }
+      return { ...d, distance };
+    });
+  }, [doctors, userLocation]);
+
   const filtered = useMemo(() => {
-    let list = [...doctors];
+    let list = [...enriched];
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
         (d) =>
           d.name.toLowerCase().includes(q) ||
           d.specialization.toLowerCase().includes(q) ||
-          d.hospital.toLowerCase().includes(q),
+          d.hospital.toLowerCase().includes(q) ||
+          (d.city && d.city.toLowerCase().includes(q)),
       );
     }
     if (activeSpec !== 'All') {
@@ -66,6 +84,12 @@ export default function DoctorsListScreen() {
         d.specialization.toLowerCase().includes(activeSpec.toLowerCase()),
       );
     }
+    // Distance filter
+    if (distanceFilter !== 'Any') {
+      const maxKm = parseInt(distanceFilter.replace(/[^0-9]/g, ''));
+      list = list.filter(d => d.distance !== null && d.distance <= maxKm);
+    }
+    // Sort
     switch (activeSort) {
       case 'Rating':
         list.sort((a, b) => b.rating - a.rating);
@@ -79,9 +103,21 @@ export default function DoctorsListScreen() {
       case 'Fee: High to Low':
         list.sort((a, b) => b.fees - a.fees);
         break;
+      case 'Distance: Nearest':
+        list.sort((a, b) => (a.distance ?? 9999) - (b.distance ?? 9999));
+        break;
+      case 'Distance: Farthest':
+        list.sort((a, b) => (b.distance ?? 0) - (a.distance ?? 0));
+        break;
     }
     return list;
-  }, [doctors, search, activeSpec, activeSort]);
+  }, [enriched, search, activeSpec, activeSort, distanceFilter]);
+
+  const openDirections = (item: any) => {
+    if (!userLocation || !item.latitude || !item.longitude) return;
+    const url = buildDirectionsLink(userLocation.latitude, userLocation.longitude, item.latitude, item.longitude);
+    Linking.openURL(url);
+  };
 
   const renderDoctor = ({ item }: any) => (
     <TouchableOpacity
@@ -89,7 +125,7 @@ export default function DoctorsListScreen() {
       onPress={() => navigation.navigate('DoctorDetail', { doctorId: item.id })}
       activeOpacity={0.9}
     >
-      <Image source={{ uri: item.avatar }} style={styles.avatar} />
+      <Image source={{ uri: item.avatar || item.image }} style={styles.avatar} />
       <View style={styles.cardInfo}>
         <View style={styles.cardTop}>
           <Text style={[styles.docName, { color: colors.textPrimary }]} numberOfLines={1}>{item.name}</Text>
@@ -104,14 +140,43 @@ export default function DoctorsListScreen() {
         <Text style={[styles.hospital, { color: colors.textSecondary }]} numberOfLines={1}>
           <Ionicons name="business-outline" size={12} color={colors.textSecondary} /> {item.hospital}
         </Text>
+
+        {/* Address + Distance Row */}
+        {(item.fullAddress || item.distance !== null) && (
+          <View style={styles.locationRow}>
+            <Ionicons name="location-outline" size={12} color={colors.textTertiary} />
+            <Text style={[styles.locationText, { color: colors.textTertiary }]} numberOfLines={1}>
+              {item.fullAddress || item.hospitalAddress}
+            </Text>
+            {item.distance !== null && (
+              <View style={styles.distanceBadge}>
+                <Ionicons name="navigate-outline" size={10} color="#0066CC" />
+                <Text style={styles.distanceText}>{formatDistance(item.distance)}</Text>
+              </View>
+            )}
+          </View>
+        )}
+
         <View style={styles.cardFooter}>
           <StarRating rating={item.rating} size={12} />
           <Text style={[styles.reviews, { color: colors.textSecondary }]}>({item.reviewCount})</Text>
           <View style={styles.dot} />
           <Text style={[styles.exp, { color: colors.textSecondary }]}>{item.experience} yrs</Text>
           <View style={styles.dot} />
-          <Text style={[styles.fee, { color: colors.textPrimary }]}>₹{item.fees}</Text>
+          <Text style={[styles.fee, { color: colors.textPrimary }]}>₹{item.fees || item.fee}</Text>
         </View>
+
+        {/* Directions button */}
+        {item.distance !== null && (
+          <TouchableOpacity
+            style={styles.directionsBtn}
+            onPress={() => openDirections(item)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="navigate" size={12} color="#0066CC" />
+            <Text style={styles.directionsBtnText}>Directions</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -124,7 +189,7 @@ export default function DoctorsListScreen() {
           <Ionicons name="search" size={18} color={colors.textSecondary} />
           <TextInput
             style={[styles.searchInput, { color: colors.textPrimary }]}
-            placeholder="Search doctors, hospitals…"
+            placeholder="Search doctors, hospitals, city..."
             placeholderTextColor={colors.textTertiary}
             value={search}
             onChangeText={setSearch}
@@ -153,6 +218,7 @@ export default function DoctorsListScreen() {
             onPress={() => setShowSortMenu(false)}
           />
           <View style={[styles.sortMenu, { backgroundColor: colors.card }]}>
+            <Text style={[styles.sortMenuTitle, { color: colors.textTertiary }]}>Sort By</Text>
             {SORT_OPTIONS.map((opt) => (
               <TouchableOpacity
                 key={opt}
@@ -163,6 +229,20 @@ export default function DoctorsListScreen() {
                   {opt}
                 </Text>
                 {activeSort === opt && <Ionicons name="checkmark" size={16} color={COLORS.primary} />}
+              </TouchableOpacity>
+            ))}
+            <View style={[styles.sortDivider, { backgroundColor: colors.border }]} />
+            <Text style={[styles.sortMenuTitle, { color: colors.textTertiary }]}>Distance</Text>
+            {DISTANCE_FILTERS.map((opt) => (
+              <TouchableOpacity
+                key={opt}
+                style={[styles.sortOption, { borderBottomColor: colors.border }]}
+                onPress={() => { setDistanceFilter(opt); setShowSortMenu(false); }}
+              >
+                <Text style={[styles.sortOptionText, { color: colors.textPrimary }, distanceFilter === opt && styles.sortActive]}>
+                  {opt}
+                </Text>
+                {distanceFilter === opt && <Ionicons name="checkmark" size={16} color={COLORS.primary} />}
               </TouchableOpacity>
             ))}
           </View>
@@ -189,6 +269,19 @@ export default function DoctorsListScreen() {
           ))}
         </ScrollView>
       </View>
+
+      {/* Active filters indicator */}
+      {distanceFilter !== 'Any' && (
+        <View style={styles.activeFilterRow}>
+          <View style={styles.activeFilterChip}>
+            <Ionicons name="location" size={12} color="#0066CC" />
+            <Text style={styles.activeFilterText}>{distanceFilter}</Text>
+            <TouchableOpacity onPress={() => setDistanceFilter('Any')}>
+              <Ionicons name="close-circle" size={14} color="#64748B" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* Result count */}
       <Text style={[styles.resultCount, { color: colors.textSecondary }]}>{filtered.length} doctors found</Text>
@@ -259,6 +352,19 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md,
     ...SHADOWS.lg,
     zIndex: 100,
+    paddingVertical: SPACING.sm,
+  },
+  sortMenuTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6,
+  },
+  sortDivider: {
+    height: 1,
+    marginVertical: 4,
   },
   sortOption: {
     flexDirection: 'row',
@@ -284,6 +390,26 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   chipText: { fontSize: FONT_SIZES.sm, fontWeight: '500' },
   chipTextActive: { color: '#fff' },
+  activeFilterRow: {
+    flexDirection: 'row',
+    paddingHorizontal: SPACING.md,
+    marginBottom: SPACING.xs,
+    gap: SPACING.sm,
+  },
+  activeFilterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EFF6FF',
+    borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  activeFilterText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#0066CC',
+  },
   resultCount: {
     fontSize: FONT_SIZES.xs,
     paddingHorizontal: SPACING.md,
@@ -305,10 +431,50 @@ const styles = StyleSheet.create({
   availText: { fontSize: 10, color: '#16a34a', fontWeight: '600' },
   spec: { fontSize: FONT_SIZES.sm, color: COLORS.primary, fontWeight: '600', marginBottom: 2 },
   qual: { fontSize: FONT_SIZES.xs, marginBottom: 2 },
-  hospital: { fontSize: FONT_SIZES.xs, marginBottom: 6 },
+  hospital: { fontSize: FONT_SIZES.xs, marginBottom: 4 },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 6,
+  },
+  locationText: {
+    fontSize: 11,
+    flex: 1,
+  },
+  distanceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#EFF6FF',
+    borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  distanceText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#0066CC',
+  },
   cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   reviews: { fontSize: FONT_SIZES.xs },
   dot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: COLORS.textSecondary },
   exp: { fontSize: FONT_SIZES.xs },
   fee: { fontSize: FONT_SIZES.xs, fontWeight: '700' },
+  directionsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    marginTop: 6,
+    backgroundColor: '#EFF6FF',
+    borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  directionsBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#0066CC',
+  },
 });

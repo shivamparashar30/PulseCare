@@ -45,7 +45,7 @@ const delay = (ms = 400) => new Promise((r) => setTimeout(r, ms));
 // ─── Doctor DB → Doctor type mapper ──────────────────────────────────────────
 import type { TimeSlot } from '../types';
 
-function mapDoctorFromDB(row: any): Doctor {
+function mapDoctorFromDB(row: any): Doctor & { latitude: number | null; longitude: number | null; city: string; fullAddress: string } {
   const dp = Array.isArray(row.doctor_profile) ? row.doctor_profile[0] : row.doctor_profile;
   return {
     id: row.id,
@@ -65,6 +65,10 @@ function mapDoctorFromDB(row: any): Doctor {
     languages: dp?.languages || ['English', 'Hindi'],
     isAvailable: dp?.available !== false,
     nextAvailable: 'Today',
+    latitude: dp?.latitude ? Number(dp.latitude) : null,
+    longitude: dp?.longitude ? Number(dp.longitude) : null,
+    city: dp?.city || '',
+    fullAddress: [dp?.address_line1, dp?.city, dp?.state].filter(Boolean).join(', '),
   };
 }
 

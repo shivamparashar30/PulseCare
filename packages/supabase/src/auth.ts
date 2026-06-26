@@ -122,7 +122,15 @@ export async function updateProfile(userId: string, updates: { full_name?: strin
 
 export async function uploadAvatar(userId: string, base64Data: string) {
   const fileName = `${userId}/${Date.now()}.jpg`;
-  const bytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+
+  // Convert base64 to Uint8Array (works in both Hermes and V8 engines)
+  const binaryString = typeof atob === 'function'
+    ? atob(base64Data)
+    : Buffer.from(base64Data, 'base64').toString('binary');
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
 
   const { error: uploadError } = await supabase.storage
     .from('avatars')

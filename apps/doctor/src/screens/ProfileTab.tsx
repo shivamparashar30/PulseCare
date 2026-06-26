@@ -7,6 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../supabase';
+import { AddressSection, addressFromDB, addressToDBFields, EMPTY_ADDRESS } from '../../../../packages/shared/src/components';
+import type { AddressData } from '../../../../packages/shared/src/components';
 
 const BLUE = '#2563EB';
 
@@ -42,6 +44,8 @@ export default function ProfileTab({ profile, onLogout }: Props) {
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  // Address (single object)
+  const [address, setAddress] = useState<AddressData>(EMPTY_ADDRESS);
 
   const load = useCallback(async () => {
     if (!profile?.id) return;
@@ -53,6 +57,7 @@ export default function ProfileTab({ profile, onLogout }: Props) {
       setAbout(data.about || '');
       setAvailableStartTime(data.available_start_time || '09:00 AM');
       setAvailableEndTime(data.available_end_time || '06:00 PM');
+      setAddress(addressFromDB(data));
     }
     setPhone(profile.phone || '');
     setAvatarUrl(profile.avatar_url || null);
@@ -106,6 +111,7 @@ export default function ProfileTab({ profile, onLogout }: Props) {
   const handleSave = async () => {
     setSaving(true);
     try {
+      const addrFields = addressToDBFields(address);
       const { error: dpError } = await supabase
         .from('doctor_profiles')
         .update({
@@ -114,6 +120,8 @@ export default function ProfileTab({ profile, onLogout }: Props) {
           about,
           available_start_time: availableStartTime,
           available_end_time: availableEndTime,
+          ...addrFields,
+          location: [address.city, address.state].filter(Boolean).join(', '),
         })
         .eq('id', profile.id);
 
@@ -263,6 +271,15 @@ export default function ProfileTab({ profile, onLogout }: Props) {
               <Text style={styles.aboutText}>{about}</Text>
             </View>
           ) : null}
+
+          {/* Address Section */}
+          <AddressSection
+            accentColor={BLUE}
+            title="Clinic / Hospital Address"
+            address={address}
+            editing={editing}
+            onChange={setAddress}
+          />
 
           {editing && (
             <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving}>

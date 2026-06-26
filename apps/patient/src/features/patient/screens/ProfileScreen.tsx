@@ -29,17 +29,17 @@ const MENU_SECTIONS = [
     items: [
       { icon: 'document-text-outline', label: 'Health Records', route: 'HealthRecords', color: '#0066CC' },
       { icon: 'calendar-outline', label: 'My Appointments', route: null, color: '#7c3aed' },
-      { icon: 'flask-outline', label: 'Lab Reports', route: null, color: '#0891b2' },
-      { icon: 'medical-outline', label: 'My Prescriptions', route: null, color: '#059669' },
+      { icon: 'flask-outline', label: 'Lab Reports', route: 'HealthRecords', color: '#0891b2' },
+      { icon: 'medical-outline', label: 'My Prescriptions', route: 'HealthRecords', color: '#059669' },
     ],
   },
   {
     title: 'Account',
     items: [
       { icon: 'person-outline', label: 'Edit Profile', route: 'EditProfile', color: '#0066CC' },
-      { icon: 'location-outline', label: 'Saved Addresses', route: null, color: '#dc2626' },
-      { icon: 'people-outline', label: 'Family Members', route: null, color: '#7c3aed' },
-      { icon: 'notifications-outline', label: 'Notification Settings', route: null, color: '#d97706' },
+      { icon: 'image-outline', label: 'Profile Photo', route: 'ProfileImage', color: '#0891b2' },
+      { icon: 'location-outline', label: 'Saved Addresses', route: 'SavedAddresses', color: '#dc2626' },
+      { icon: 'people-outline', label: 'Family Members', route: 'FamilyMembers', color: '#7c3aed' },
     ],
   },
   {
@@ -47,7 +47,7 @@ const MENU_SECTIONS = [
     items: [
       { icon: 'help-circle-outline', label: 'Help Center', route: 'HelpCenter', color: '#0066CC' },
       { icon: 'shield-outline', label: 'Privacy Policy', route: 'PrivacyPolicy', color: '#475569' },
-      { icon: 'document-outline', label: 'Terms of Service', route: null, color: '#475569' },
+      { icon: 'document-outline', label: 'Terms of Service', route: 'TermsOfService', color: '#475569' },
       { icon: 'star-outline', label: 'Rate the App', route: null, color: '#d97706' },
     ],
   },
@@ -104,7 +104,7 @@ export default function ProfileScreen() {
           style={styles.hero}
         >
           <View style={styles.heroContent}>
-            <View style={styles.avatarRing}>
+            <TouchableOpacity style={styles.avatarRing} onPress={() => navigation.navigate('ProfileImage')} activeOpacity={0.85}>
               {avatarUrl && !avatarUrl.includes('randomuser.me') ? (
                 <Image source={{ uri: avatarUrl }} style={styles.avatarImg} />
               ) : (
@@ -112,7 +112,7 @@ export default function ProfileScreen() {
                   <Text style={styles.avatarText}>{initials}</Text>
                 </View>
               )}
-            </View>
+            </TouchableOpacity>
             <View style={styles.heroInfo}>
               <Text style={styles.heroName} numberOfLines={1}>{user?.name || 'Guest User'}</Text>
               {user?.email && (
@@ -195,6 +195,8 @@ export default function ProfileScreen() {
                   onPress={() => {
                     if (item.label === 'My Appointments') {
                       navigation.getParent()?.navigate('Appointments');
+                    } else if (item.label === 'Rate the App') {
+                      Alert.alert('Coming Soon', 'App rating will be available once the app is published on the Play Store and App Store.');
                     } else if (item.route) {
                       navigation.navigate(item.route as any);
                     }

@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '../../core/src/constants';
 
 interface ThemeColors {
@@ -16,10 +17,13 @@ interface ThemeColors {
 interface ThemeContextType {
   isDarkMode: boolean;
   toggleDarkMode: () => void;
+  toggleTheme: () => void;
   colors: ThemeColors;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+
+const THEME_KEY = '@healthcare_theme_mode';
 
 const lightColors: ThemeColors = {
   background: COLORS.background,
@@ -48,8 +52,18 @@ const darkColors: ThemeColors = {
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
 
+  useEffect(() => {
+    AsyncStorage.getItem(THEME_KEY).then((val) => {
+      if (val === 'dark') setIsDarkMode(true);
+    }).catch(() => {});
+  }, []);
+
   const toggleDarkMode = useCallback(() => {
-    setIsDarkMode((prev) => !prev);
+    setIsDarkMode((prev) => {
+      const next = !prev;
+      AsyncStorage.setItem(THEME_KEY, next ? 'dark' : 'light').catch(() => {});
+      return next;
+    });
   }, []);
 
   return (
@@ -57,6 +71,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       value={{
         isDarkMode,
         toggleDarkMode,
+        toggleTheme: toggleDarkMode,
         colors: isDarkMode ? darkColors : lightColors,
       }}
     >

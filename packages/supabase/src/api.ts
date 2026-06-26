@@ -26,6 +26,11 @@ export async function fetchDoctors() {
     available: d.available,
     about: d.about ?? '',
     availableSlots: d.available_slots ?? [],
+    latitude: d.latitude ? Number(d.latitude) : null,
+    longitude: d.longitude ? Number(d.longitude) : null,
+    city: d.city ?? '',
+    addressLine1: d.address_line1 ?? '',
+    fullAddress: [d.address_line1, d.city, d.state].filter(Boolean).join(', '),
   })) ?? [];
 }
 
@@ -54,6 +59,11 @@ export async function fetchDoctorById(id: string) {
     available: data.available,
     about: data.about ?? '',
     availableSlots: data.available_slots ?? [],
+    latitude: data.latitude ? Number(data.latitude) : null,
+    longitude: data.longitude ? Number(data.longitude) : null,
+    city: data.city ?? '',
+    addressLine1: data.address_line1 ?? '',
+    fullAddress: [data.address_line1, data.city, data.state].filter(Boolean).join(', '),
   };
 }
 

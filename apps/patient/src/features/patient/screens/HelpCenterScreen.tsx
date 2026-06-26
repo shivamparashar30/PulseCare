@@ -79,11 +79,11 @@ export default function HelpCenterScreen({ navigation }: any) {
           <Text style={styles.heroTitle}>How can we help?</Text>
           <Text style={styles.heroSub}>Find answers to frequently asked questions</Text>
           <View style={styles.searchBox}>
-            <Ionicons name="search" size={18} color={colors.textSecondary} />
+            <Ionicons name="search" size={18} color={colors.textPrimarySecondary} />
             <TextInput
-              style={[styles.searchInput, { color: colors.text }]}
+              style={[styles.searchInput, { color: colors.textPrimary }]}
               placeholder="Search your question..."
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={colors.textPrimaryTertiary}
               value={query}
               onChangeText={setQuery}
             />
@@ -91,7 +91,7 @@ export default function HelpCenterScreen({ navigation }: any) {
         </LinearGradient>
 
         {/* Contact Options */}
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Contact Us</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Contact Us</Text>
         <View style={styles.contactRow}>
           {CONTACT_OPTIONS.map(opt => (
             <TouchableOpacity
@@ -102,14 +102,14 @@ export default function HelpCenterScreen({ navigation }: any) {
               <View style={[styles.contactIcon, { backgroundColor: opt.color + '15' }]}>
                 <Ionicons name={opt.icon as any} size={22} color={opt.color} />
               </View>
-              <Text style={[styles.contactLabel, { color: colors.text }]}>{opt.label}</Text>
-              <Text style={[styles.contactValue, { color: colors.textSecondary }]}>{opt.value}</Text>
+              <Text style={[styles.contactLabel, { color: colors.textPrimary }]}>{opt.label}</Text>
+              <Text style={[styles.contactValue, { color: colors.textPrimarySecondary }]}>{opt.value}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
         {/* FAQs */}
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Frequently Asked Questions</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Frequently Asked Questions</Text>
         {filteredFaqs.map(cat => (
           <View key={cat.category} style={styles.faqCategory}>
             <View style={styles.catHeader}>
@@ -126,14 +126,14 @@ export default function HelpCenterScreen({ navigation }: any) {
                       style={styles.faqRow}
                       onPress={() => setOpenFaq(isOpen ? null : key)}
                     >
-                      <Text style={[styles.faqQ, { color: colors.text }]} numberOfLines={isOpen ? undefined : 1}>
+                      <Text style={[styles.faqQ, { color: colors.textPrimary }]} numberOfLines={isOpen ? undefined : 1}>
                         {item.q}
                       </Text>
-                      <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.textSecondary} />
+                      <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={16} color={colors.textPrimarySecondary} />
                     </TouchableOpacity>
                     {isOpen && (
                       <View style={[styles.faqAnswer, { borderTopColor: colors.border }]}>
-                        <Text style={[styles.faqA, { color: colors.textSecondary }]}>{item.a}</Text>
+                        <Text style={[styles.faqA, { color: colors.textPrimarySecondary }]}>{item.a}</Text>
                       </View>
                     )}
                     {idx < cat.items.length - 1 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
@@ -147,8 +147,8 @@ export default function HelpCenterScreen({ navigation }: any) {
         {/* Still need help */}
         <View style={[styles.stillHelp, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Ionicons name="chatbubble-ellipses" size={32} color={colors.primary} />
-          <Text style={[styles.stillHelpTitle, { color: colors.text }]}>Still need help?</Text>
-          <Text style={[styles.stillHelpSub, { color: colors.textSecondary }]}>
+          <Text style={[styles.stillHelpTitle, { color: colors.textPrimary }]}>Still need help?</Text>
+          <Text style={[styles.stillHelpSub, { color: colors.textPrimarySecondary }]}>
             Our support team is available 24/7 to assist you
           </Text>
           <TouchableOpacity style={[styles.chatBtn, { backgroundColor: colors.primary }]}>

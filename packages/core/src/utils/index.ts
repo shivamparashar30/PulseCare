@@ -57,6 +57,9 @@ export const truncate = (text: string, maxLen: number): string =>
 export const uid = (): string =>
   Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 
+// ─── Location utilities ──────────────────────────────────────────────────────
+export { getDistanceKm, formatDistance, buildMapsLink, buildDirectionsLink } from './location';
+
 /** Simulate Razorpay test payment — always succeeds after 1.5 s */
 export const simulateRazorpayPayment = (
   amount: number,

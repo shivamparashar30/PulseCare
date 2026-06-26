@@ -8,8 +8,9 @@ import LoginScreen from './src/screens/LoginScreen';
 import SignupScreen from './src/screens/SignupScreen';
 import PendingScreen from './src/screens/PendingScreen';
 import DiagnosticsDashboard from './src/screens/DiagnosticsDashboard';
+import { AddressCompletionScreen } from '../../packages/shared/src/components';
 
-type AppState = 'loading' | 'login' | 'signup' | 'pending' | 'rejected' | 'home';
+type AppState = 'loading' | 'login' | 'signup' | 'pending' | 'rejected' | 'address_incomplete' | 'home';
 
 export default function App() {
   const [state, setState] = useState<AppState>('loading');
@@ -33,7 +34,14 @@ export default function App() {
     if (!data) { setState('login'); return; }
     setProfile(data);
 
-    if (data.status === 'approved') setState('home');
+    if (data.status === 'approved') {
+      const { data: dc } = await supabase.from('diagnostics_centers').select('address_line1, city, state, pincode, latitude, longitude').eq('id', data.id).single();
+      if (!dc?.address_line1 || !dc?.city || !dc?.state || !dc?.pincode || dc?.latitude == null) {
+        setState('address_incomplete');
+      } else {
+        setState('home');
+      }
+    }
     else if (data.status === 'rejected') setState('rejected');
     else setState('pending');
   };
@@ -55,12 +63,38 @@ export default function App() {
 
     setProfile(p);
 
-    if (p.status === 'approved') setState('home');
+    if (p.status === 'approved') {
+      const { data: dc } = await supabase.from('diagnostics_centers').select('address_line1, city, state, pincode, latitude, longitude').eq('id', p.id).single();
+      if (!dc?.address_line1 || !dc?.city || !dc?.state || !dc?.pincode || dc?.latitude == null) {
+        setState('address_incomplete');
+      } else {
+        setState('home');
+      }
+    }
     else if (p.status === 'rejected') setState('rejected');
     else setState('pending');
   };
 
   const handleLogout = async () => { await supabase.auth.signOut(); setProfile(null); setState('login'); };
+
+  const handleAddressSave = async (address: any) => {
+    if (!profile?.id) return;
+    const { error } = await supabase.from('diagnostics_centers').update({
+      address_line1: address.address_line1,
+      address_line2: address.address_line2,
+      landmark: address.landmark,
+      city: address.city,
+      state: address.state,
+      pincode: address.pincode,
+      country: address.country,
+      latitude: address.latitude,
+      longitude: address.longitude,
+      google_maps_link: address.google_maps_link,
+      address: `${address.address_line1}, ${address.city}, ${address.state} ${address.pincode}`,
+    }).eq('id', profile.id);
+    if (error) throw error;
+    setState('home');
+  };
 
   if (state === 'loading') return <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#7C3AED" /></View>;
 
@@ -71,6 +105,7 @@ export default function App() {
       {state === 'signup' && <SignupScreen onGoToLogin={() => { signingUp.current = false; setState('login'); }} onSignupComplete={() => { signingUp.current = false; setState('pending'); }} />}
       {state === 'pending' && <PendingScreen status="pending" onLogout={handleLogout} />}
       {state === 'rejected' && <PendingScreen status="rejected" rejectionReason={profile?.rejection_reason} onLogout={handleLogout} />}
+      {state === 'address_incomplete' && <AddressCompletionScreen accentColor="#7C3AED" role="Diagnostics Center" onSave={handleAddressSave} onLogout={handleLogout} />}
       {state === 'home' && <DiagnosticsDashboard onLogout={handleLogout} profile={profile} />}
     </SafeAreaProvider>
   );
